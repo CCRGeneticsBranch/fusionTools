@@ -19,6 +19,7 @@ STATUS_CODING = "STATUS_CODING"
 STATUS_INTERGENIC = "STATUS_INTERGENIC"
 STATUS_UTR = "STATUS_UTR"
 STATUS_NO_CDS = "STATUS_NO_CDS"
+STATUS_NO_EXONS = "STATUS_NO_EXONS"
 STATUS_INTRON_SPLICE_SITE_PROXIMAL = "STATUS_INTRON_SPLICE_SITE_PROXIMAL"
 STATUS_INTRON_SPLICE_SITE_DISTAL = "STATUS_INTRON_SPLICE_SITE_DISTAL"
 TYPE_IN_FRAME = "in-frame"
@@ -49,18 +50,34 @@ def predictPfam(fuse_pep, pfam_file):
     f.close()
     os.remove(tmp_in)
     return domains
+
+def remove_ensembl_version(s):
+    a = s.split(".", 1)
+    return a[0]
     
 class Genome:
-    def __init__(self, gtf_file, fasta_file, canonical_trans_file=None, domain_file=None):
+    def __init__(self, gtf_file, fasta_file, canonical_trans_file=None, domain_file=None, isoform_expression_file=None):
         self._gtf = read_gtf(gtf_file)
         self._sequences = Fasta(fasta_file, one_based_attributes=True)
         if canonical_trans_file != None:
             self._canonical_trans = pd.read_csv(canonical_trans_file, delimiter = "\t")
-            self._canonical_trans.set_index("Gene Symbol")
+            self._canonical_trans["Symbol"] = self._canonical_trans["Symbol"].str.upper()
+            self._canonical_trans.set_index("Symbol")
         if domain_file != None:
             self._domains = pd.read_csv(domain_file, delimiter = "\t")
             self._domains.set_index("trans")
-        
+        self._isoform_expression = None
+        if isoform_expression_file != None:
+            self._isoform_expression = pd.read_csv(isoform_expression_file, delimiter = "\t")
+            isoform_ids = self._isoform_expression["transcript_id"].apply(lambda x: remove_ensembl_version(x))
+            self._isoform_expression["transcript_id"] = isoform_ids
+            self._isoform_expression.set_index("transcript_id")
+            #print(self._isoform_expression.head(5))
+        gene_ids = self._gtf["gene_id"].apply(lambda x: remove_ensembl_version(x))
+        trans_ids = self._gtf["transcript_id"].apply(lambda x: remove_ensembl_version(x))
+        self._gtf["gene_id"] = gene_ids
+        self._gtf["transcript_id"] = trans_ids
+        self._gtf["gene_name"] = self._gtf["gene_name"].str.upper()
         self._gtf.set_index("gene_name")
     
     @property
@@ -76,6 +93,10 @@ class Genome:
     @property
     def canonical_trans(self):
         return self._canonical_trans
+    
+    @property
+    def isoform_expression(self):
+        return self._isoform_expression
         
     def getSequence(self, chromosome, start, end, oneBased=True):
         start = int(start)
@@ -108,6 +129,7 @@ class FusionElement:
     location: str
     exon_number: str
     sequence: str
+    extend_info: None
 
     
 class Transcript:
@@ -116,22 +138,32 @@ class Transcript:
         self._genome = genome
         self._gene = gene
         self._transcript_id = transcript_id
+        self._expression = "NA"
         self._trans_gtf = gene.gtf[gene.gtf["transcript_id"]==transcript_id]
-        self._trans_gtf = self._trans_gtf.astype({'exon_number': 'int32'})
-        self._start = min(self._trans_gtf["start"])
-        self._end = max(self._trans_gtf["end"])
-        self._exon_info = []
-        domains_df = genome.domains[genome.domains["trans"]==transcript_id]
-        self._domains = "[]"
-        self._protein_length = 0
-        if not domains_df.empty:
-            self._domains = domains_df.iloc[0]["domains"]
-            self._protein_length = int(domains_df.iloc[0]["protein_length"])
+        if genome.isoform_expression is not None:
+            exp = genome.isoform_expression[genome.isoform_expression["transcript_id"]==transcript_id]
+            if not exp.empty:
+                self._expression = exp.iloc[0]["TPM"]
+        #self._trans_gtf = gene.gtf[gene.gtf["transcript_id"].str.contains(transcript_id)]
         if not self._trans_gtf.empty:
+            self._start = min(self._trans_gtf["start"])
+            self._end = max(self._trans_gtf["end"])
+            self._exon_info = []            
+            self._domains = "[]"
+            self._protein_length = 0
             self._strand = self._trans_gtf.iloc[0]["strand"]
+            if hasattr(genome, 'domains'):
+                tid = transcript_id.split(".", 1)[0]
+                domains_df = genome.domains[genome.domains["trans"]==tid]
+                if not domains_df.empty:
+                    self._domains = domains_df.iloc[0]["domains"]
+                    self._protein_length = int(domains_df.iloc[0]["protein_length"])
+            self._trans_gtf = self._trans_gtf[self._trans_gtf['feature'] != "gene"]
             #print(self._strand)
     
     def getCodingSequence(self, do_translate=True):
+        if self._trans_gtf.empty:
+            return ""
         cds = self.getFeature()
         tx_seq = ""
         strand = "+"
@@ -152,6 +184,10 @@ class Transcript:
         location = ""
         tx_seq = ""
         exon_number = "NA"
+        extend_info = {"offset":0, "seq":""}
+        extend_cutoff = 8
+        if self._trans_gtf.empty:
+            return FusionElement(self, STATUS_NO_EXONS, location, exon_number, "", extend_info)
         status = STATUS_CODING
         # breakpoint not in gene region
         if breakpoint < self._start:
@@ -162,6 +198,9 @@ class Transcript:
             status = STATUS_INTERGENIC
         
         exons = self.getFeature('exon')
+        if exons.empty:
+            return FusionElement(self, STATUS_NO_EXONS, location, exon_number, "", extend_info)
+        exons = exons.astype({'exon_number': 'int32'})
         max_en = max(exons["exon_number"])
         cdses = self.getFeature('CDS')
         cds_start = 0
@@ -171,15 +210,16 @@ class Transcript:
             cds_end = max(cdses["end"])
         previous_start = -1
         previous_end = -1
-        previous_en = -1
+        previous_en = -1        
         #self._exon_info = []
         #loop exons to identify breakpoint is in exon/intron and exon number
         for ei, exon in exons.iterrows():
             start = exon["start"]
             end = exon["end"]
             en = exon["exon_number"]
-            if self._strand == "-":
-                en = int(max_en) - int(en) + 1
+            #gencode GTF has correct exon number. For refseq, use the following to reverse the exon number
+            #if self._strand == "-":
+            #    en = int(max_en) - int(en) + 1
             #exon info
             if not cdses.empty:
                 #if CDS
@@ -203,7 +243,7 @@ class Transcript:
             # breakpoint in exon
             if breakpoint >= start and breakpoint <= end:
                 location = "exon"
-                exon_number = "exon" + str(en)                
+                exon_number = "exon" + str(en)
             # breakpoint in intron
             if breakpoint > previous_end and breakpoint < start:
                 location = "intron"
@@ -219,18 +259,18 @@ class Transcript:
         if cdses.empty:
             status = STATUS_NO_CDS        
             
-        if breakpoint < cds_start:
+        if breakpoint < cds_start and status != STATUS_NO_CDS and exon_number != "NA":
             utr_type = "5UTR" if self._strand == "+" else "3UTR"
             location = utr_type
             status = STATUS_UTR            
-        if breakpoint > cds_end:
+        if breakpoint > cds_end and status != STATUS_NO_CDS and exon_number != "NA":
             utr_type = "3UTR" if self._strand == "+" else "5UTR"
             location = utr_type
             status = STATUS_UTR            
         
         #we don't need to calculate the fusion sequence
-        if status == STATUS_INTERGENIC or status == STATUS_INTRON_SPLICE_SITE_DISTAL or status == STATUS_NO_CDS or status == STATUS_UTR:
-            return FusionElement(self, status, location, exon_number, "")
+        if status == STATUS_INTERGENIC or status == STATUS_INTRON_SPLICE_SITE_DISTAL or status == STATUS_NO_CDS:
+            return FusionElement(self, status, location, exon_number, "", extend_info)
             
         #loop CDSs to get sequence
         previous_start = -1
@@ -242,60 +282,92 @@ class Transcript:
             start = cds["start"]
             end = cds["end"]
             cds_seq = ""
-            if bool(upstream) == bool(self._strand == "+"):                
-                if breakpoint >= start:
+            # we want the first part of the transcript
+            if bool(upstream) == bool(self._strand == "+"):
+                if breakpoint >= start:                    
                     if breakpoint > end:
+                        #whole CDS included
                         cds_seq = self._genome.getSequence(seq, start, end)
                         tx_seq = tx_seq + cds_seq
                     else:
+                        # breakpoint in CDS
                         cds_seq = self._genome.getSequence(seq, start, breakpoint)
                         location = "CDS"
                         tx_seq = tx_seq + cds_seq
+                        if end - breakpoint <= extend_cutoff and end != breakpoint:
+                            extend_info["offset"] = end - breakpoint
+                            extend_info["seq"] = self._genome.getSequence(seq, breakpoint + 1, end)
                         break
                 #check if in intron
                 else:
                     if breakpoint > previous_end:
                         if breakpoint - previous_end > intron_max:
-                            return FusionElement(self, STATUS_INTRON_SPLICE_SITE_DISTAL, location, exon_number, "")
+                            return FusionElement(self, STATUS_INTRON_SPLICE_SITE_DISTAL, location, exon_number, "", extend_info)
                         status = STATUS_INTRON_SPLICE_SITE_PROXIMAL
                         cds_seq = self._genome.getSequence(seq, previous_end+1, breakpoint)
+                        extend_info["offset"] = -1*len(cds_seq)
+                        extend_info["seq"] = cds_seq
                         tx_seq = tx_seq + cds_seq
                         break
-            else:                
+            # we want the second part of the transcript
+            else:
                 if breakpoint <= end:
-                    if breakpoint < start:
-                        #in intron
-                        if breakpoint > previous_end:
-                            status = STATUS_INTRON_SPLICE_SITE_PROXIMAL
-                            cds_seq = self._genome.getSequence(seq, breakpoint, end)
-                            tx_seq = tx_seq + cds_seq
+                    if breakpoint < start:                        
+                        if breakpoint > previous_end and status != STATUS_UTR:
+                            #in intron
+                            status = STATUS_INTRON_SPLICE_SITE_DISTAL
+                            if start - breakpoint < intron_max:
+                                status = STATUS_INTRON_SPLICE_SITE_PROXIMAL
+                                cds_seq = self._genome.getSequence(seq, breakpoint, end)
+                                tx_seq = tx_seq + cds_seq
+                                extend_info["offset"] = -1*(start - breakpoint)
+                                extend_info["seq"] = cds_seq[:(start - breakpoint)]
                         else:
+                            #whole CDS included
                             cds_seq = self._genome.getSequence(seq, start, end)
                             tx_seq = tx_seq + cds_seq
                     else:
+                        # breakpoint in CDS
                         cds_seq = self._genome.getSequence(seq, breakpoint, end)
                         location = "CDS"
                         tx_seq = tx_seq + cds_seq
+                        if breakpoint - start <= extend_cutoff and start != breakpoint:
+                            extend_info["offset"] = breakpoint - start
+                            extend_info["seq"] = self._genome.getSequence(seq, start, breakpoint - 1)
             previous_start = start
             previous_end = end
         if self._strand == "-":
             tx_seq = str(Seq(tx_seq).reverse_complement())
-        #print(tx_seq)
-        return FusionElement(self, status, location, exon_number, tx_seq)
+            if extend_info["offset"] != 0:
+                extend_info["seq"] = str(Seq(extend_info["seq"]).reverse_complement())
+        #print(extend_info)
+        return FusionElement(self, status, location, exon_number, tx_seq, extend_info)
         
     def getFeature(self, feature="CDS"):
         if feature == "CDS":
-            return self._trans_gtf.query('feature == "CDS" or feature == "stop_codon"').sort_values(by=['start'])
-        return self._trans_gtf.query('feature == "' + feature + '"').sort_values(by=['start'])    
+            try:
+                return self._trans_gtf.loc[(self._trans_gtf['feature'] == "CDS") | (self._trans_gtf['feature'] == "stop_codon")].sort_values(by=['start'])
+            except Exception as inst:
+                print("Exception in " + self._transcript_id + " " + self._gene.symbol)
+        return self._trans_gtf.loc[self._trans_gtf['feature'] == feature].sort_values(by=['start'])
+        #return self._trans_gtf.query('feature == "' + feature + '"').sort_values(by=['start'])    
     
     @property
     def exonInfo(self):
         return self._exon_info
     
     @property
+    def strand(self):
+        return self._strand
+        
+    @property
     def domains(self):
         return self._domains
     
+    @property
+    def expression(self):
+        return self._expression
+        
     @property
     def protein_length(self):
         return self._protein_length
@@ -312,12 +384,17 @@ class Gene:
         self._chromosome = chromosome
         self._fusion_cancer_gene = fusion_cancer_gene
         self._cancer_gene = cancer_gene
-        self._gtf = genome.gtf[genome.gtf["gene_name"]==symbol]
-        can_txs = genome.canonical_trans[genome.canonical_trans["Gene Symbol"]==symbol]
+        self._cancer_gene = cancer_gene
+        self._gtf = genome.gtf[genome.gtf["gene_name"]==symbol.upper()]
+        if self._gtf.empty and symbol[0:4] == "ENSG":
+            #self._gtf = genome.gtf[genome.gtf["gene_id"]==symbol]
+            self._gtf = genome.gtf[genome.gtf["gene_id"]==symbol]
+        
+        can_txs = genome.canonical_trans[genome.canonical_trans["Symbol"]==symbol.upper()]
         self._canonical_transcript_id = ""
         if not can_txs.empty:
-            self._canonical_transcript_id = can_txs.iloc[0]["Transcript"]
-        self._transcript_list = list(set(self._gtf["transcript_id"].tolist()))
+            self._canonical_transcript_id = can_txs.iloc[0]["Ensembl"]
+        self._transcript_list = list(set(self._gtf.loc[self._gtf["feature"]=="transcript"]["transcript_id"].tolist()))
     
     @property
     def gtf(self):
@@ -442,11 +519,11 @@ class FusionEvent:
         for left_tx in self._left_gene.transcript_list:
             left_trans = Transcript(self._genome, self._left_gene, left_tx)
             self._left_results[left_tx] = left_trans.getFusionSequence(self._left_position, True)
-            self._left_trans_info[left_tx] = {"exon_info": left_trans.exonInfo, "domains": left_trans.domains, "protein_length": left_trans.protein_length}
+            self._left_trans_info[left_tx] = {"chr": self._left_gene.chromosome, "strand": left_trans.strand, "exon_info": left_trans.exonInfo, "expression": left_trans.expression, "seq_to_ss": self._left_results[left_tx].extend_info["seq"], "domains": left_trans.domains, "protein_length": left_trans.protein_length, "cdna":self._left_results[left_tx].sequence}
         for right_tx in self._right_gene.transcript_list:
             right_trans = Transcript(self._genome, self._right_gene, right_tx)
             self._right_results[right_tx] = right_trans.getFusionSequence(self._right_position, False)
-            self._right_trans_info[right_tx] = {"exon_info": right_trans.exonInfo, "domains": right_trans.domains, "protein_length": right_trans.protein_length}
+            self._right_trans_info[right_tx] = {"chr": self._right_gene.chromosome, "strand": right_trans.strand, "exon_info": right_trans.exonInfo,  "expression": right_trans.expression, "seq_to_ss": self._right_results[right_tx].extend_info["seq"], "domains": right_trans.domains, "protein_length": right_trans.protein_length, "cdna":self._right_results[right_tx].sequence}
         # get fused transcript for all combination
         fuse_peps = {}
         rep_tier = 99
@@ -466,12 +543,18 @@ class FusionEvent:
                 is_right_canonical = (right_tx == self._right_gene.canonical_transcript_id)
                 fuse_pep = ""
                 type = TYPE_NO_PROTIEN
-                if right_result.location == "upstream" or right_result.location == "5UTR":
-                    type = TYPE_RIGHT_INTACT
                 fuse_nucl_seq = ""
                 fuse_nucl_position = 0
                 fuse_pep_position = 0
-                if left_result.sequence != "" and right_result.sequence != "":
+                #right gene intact. Ignore the left gene
+                if right_result.location == "upstream" or right_result.location == "5UTR":
+                    type = TYPE_RIGHT_INTACT
+                    fuse_nucl_seq = right_result.sequence
+                    fuse_pep = str(Seq(fuse_nucl_seq).translate())                
+                elif left_result.sequence != "" and right_result.sequence != "":
+                    #if left_result.extend_info["offset"] != 0 and right_result.extend_info["offset"] != 0:
+                    #    print(left_result.extend_info["seq"])
+                    #    print(right_result.extend_info["seq"])                        
                     fuse_nucl_position = len(left_result.sequence) + 1
                     fuse_pep_position = int(fuse_nucl_position / 3) + 1
                     fuse_nucl_seq = left_result.sequence + right_result.sequence
@@ -499,9 +582,22 @@ class FusionEvent:
                     if tier < rep_tier:
                         rep_tier = tier
                         self._rep_result = fusion_result
+        fues_pep_len = {}
         for fuse_pep in fuse_peps:
-            domains = predictPfam(fuse_pep, self._pfam_file)            
-            self._fuse_peps[fuse_pep] = {"domains":domains, "transcripts":fuse_peps[fuse_pep]}
+            fues_pep_len[fuse_pep] = len(fuse_pep)
+        sorted_pep_len = dict(sorted(fues_pep_len.items(), key=lambda item: item[1], reverse=True))
+        fuse_pep_list = []
+        i = 1
+        for fuse_pep in sorted_pep_len:
+            domains = predictPfam(fuse_pep, self._pfam_file)  
+            types = []
+            frs = fuse_peps[fuse_pep]
+            for fr in frs:
+                types.append(fr["type"])
+            sep = ","
+            type= sep.join(set(types))
+            self._fuse_peps["Protein " + str(i)] = {"type": type, "length": sorted_pep_len[fuse_pep], "sequence": fuse_pep, "domains":domains, "transcripts":fuse_peps[fuse_pep]}
+            i = i + 1
         
         return self._rep_result, self._fuse_peps, self._left_results, self._right_results, self._left_trans_info, self._right_trans_info 
             

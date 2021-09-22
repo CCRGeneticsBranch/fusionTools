@@ -71,12 +71,15 @@ def main(args):
     num_threads = args.threads
     fusion_cancer_file = args.fusion_cancer_gene_list.strip()
     cancer_gene_file = args.cancer_gene_list.strip()
+    isoform_expression_file = None
+    if args.isoform_expression_file != None:
+        isoform_expression_file = args.isoform_expression_file.strip()
     print(gtf_file)
     print(fasta_file)
     print(in_file)
     start=datetime.now()
     #prepare GTF, canonical list and cancer gene list
-    genome = Genome(gtf_file, fasta_file, canonical_trans_file, domain_file)
+    genome = Genome(gtf_file, fasta_file, canonical_trans_file, domain_file, isoform_expression_file)
     threads = []
     avail_threads = os.cpu_count()
     print("threads assigned:" + str(num_threads))
@@ -172,18 +175,20 @@ def main(args):
     
     
     
-    
+script_dir = os.path.dirname(os.path.abspath(__file__))
+avail_threads = os.cpu_count() -1
 parser = argparse.ArgumentParser(description='Classify fusion types.')
-parser.add_argument("--gtf", "-g", metavar="GTF file", default="/data/Clinomics/Ref/khanlab/GTF/ucsc.hg19_star.gtf", help="GTF file")
+parser.add_argument("--gtf", "-g", metavar="GTF file", default=script_dir + "/data/gencode.v19.annotation.gtf", help="GTF file")
 parser.add_argument("--fasta", "-f", metavar="Genome FASTA file", default="/data/Clinomics/Ref/khanlab/ucsc.hg19.fasta", help="Genome FASTA file")
-parser.add_argument("--canonical_trans_file", "-n", metavar="Canonical transcript list", default="canonical_transcripts_07212021.txt", help="Conoical transcript list")
-parser.add_argument("--fusion_cancer_gene_list", "-u", metavar="Fusion cancer gene pair list", default="sanger_mitelman_pairs.txt", help="Fusion cancer gene pair list")
-parser.add_argument("--cancer_gene_list", "-c", metavar="Cancer gene list", default="clinomics_gene_list.txt", help="Cancer gene list")
-parser.add_argument("--pfam_file", "-p", metavar="Pfam domain file", default="/data/khanlab/projects/hsienchao/oncogenomics/fusion/PfamDB", help="Pfam domain file")
+parser.add_argument("--isoform_expression_file", "-e", metavar="Isoform expression file in RSEM format", help="Isoform expression file in RSEM format")
+parser.add_argument("--canonical_trans_file", "-n", metavar="Canonical transcript list", default="data/canonical_transcripts_with_ensembl.txt", help="Conoical transcript list (default: %(default)s)")
+parser.add_argument("--fusion_cancer_gene_list", "-u", metavar="Fusion cancer gene pair list", default="data/sanger_mitelman_pairs.txt", help="Fusion cancer gene pair list (default: %(default)s)")
+parser.add_argument("--cancer_gene_list", "-c", metavar="Cancer gene list", default="data/clinomics_gene_list.txt", help=" (default: %(default)s)Cancer gene list")
+parser.add_argument("--pfam_file", "-p", metavar="Pfam domain file", default=script_dir + "/PfamDB", help="Pfam domain file (default: %(default)s)")
 parser.add_argument("--input", "-i", metavar="Fusion file", required=True, default="/data/khanlab/projects/processed_DATA/RMS2074/Research/Actionable/RMS2074.fusion.actionable.txt", help="Fusion file")
 parser.add_argument("--output", "-o", metavar="output file", help="output file", required=True)
-parser.add_argument("--domain_file", "-d", metavar="Pfam domain file", default="/data/khanlab/projects/hsienchao/oncogenomics/fusion/refseq_domain.tsv", help="Pfam domain file")
-parser.add_argument("--threads", "-t", metavar="Number of threads", type=int, default=8, help="Number of threads")
+parser.add_argument("--domain_file", "-d", metavar="Pfam domain file", default=script_dir + "/data/ensembl_domain.tsv", help="Pfam domain file (default: %(default)s)")
+parser.add_argument("--threads", "-t", metavar="Number of threads", type=int, default=avail_threads, help="Number of threads (default: %(default)s)")
 args = parser.parse_args()
 
 main(args)
