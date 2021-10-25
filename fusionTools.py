@@ -74,19 +74,27 @@ def main(args):
     isoform_expression_file = None
     if args.isoform_expression_file != None:
         isoform_expression_file = args.isoform_expression_file.strip()
-    print(gtf_file)
-    print(fasta_file)
-    print(in_file)
+        logging.info("Expression:" + isoform_expression_file)
+    gene_bed_file = gtf_file.replace("gtf.gz", "genes.bed")
+    if not os.path.exists(gene_bed_file):
+        print("Gene bed file not exists, generating one")
+        gtf = read_gtf(gtf_file)
+        gene_gtf = gtf[gtf['feature']=="gene"]
+        gene_gtf = gene_gtf[["seqname","start","end","strand","gene_id","gene_name","level","gene_status"]]
+        gene_gtf.to_csv(gene_bed_file, sep ='\t', index=None)    
+    logging.info("GTF:" + gtf_file)
+    logging.info("FASTA:" + fasta_file)
+    logging.info("Input:" + in_file)    
     start=datetime.now()
     #prepare GTF, canonical list and cancer gene list
-    genome = Genome(gtf_file, fasta_file, canonical_trans_file, domain_file, isoform_expression_file)
+    genome = Genome(gtf_file, gene_bed_file, fasta_file, canonical_trans_file, domain_file, isoform_expression_file)
     threads = []
     avail_threads = os.cpu_count()
-    print("threads assigned:" + str(num_threads))
-    print("total cpus:" + str(avail_threads))
+    logging.info("threads assigned:" + str(num_threads))
+    logging.info("total cpus:" + str(avail_threads))
     if avail_threads < num_threads:
         num_threads = avail_threads - 1
-    print("total " + str(num_threads) + " are used")
+    logging.info("total " + str(num_threads) + " are used")
     in_list = pd.read_csv(in_file, delimiter = "\t")
     fusion_list = {}
     #combine fusion callers
@@ -96,12 +104,15 @@ def main(args):
            if row[0] != target_gene and row[1] != target_gene:
               continue
         s = ":"
+        rc = "NA"
+        if "SpanReadCount" in row:
+            rc = row["SpanReadCount"]
         key = s.join(map(str,row[0:7]))
-        value = {row["Tool"]:row["SpanReadCount"]}
+        value = {row["Tool"]:rc}
         if key in fusion_list:
-            fusion_list[key].append({row["Tool"]:row["SpanReadCount"]})
+            fusion_list[key].append({row["Tool"]:rc})
         else:
-            fusion_list[key] = [{row["Tool"]:row["SpanReadCount"]}]
+            fusion_list[key] = [{row["Tool"]:rc}]
     chunks = []
     total_events = len(fusion_list)
     num_in_chunk = (int)(total_events/(num_threads-1))
@@ -178,16 +189,16 @@ def main(args):
 script_dir = os.path.dirname(os.path.abspath(__file__))
 avail_threads = os.cpu_count() -1
 parser = argparse.ArgumentParser(description='Classify fusion types.')
-parser.add_argument("--gtf", "-g", metavar="GTF file", default=script_dir + "/data/gencode.v19.annotation.gtf", help="GTF file")
+parser.add_argument("--gtf", "-g", metavar="GTF file", default=script_dir + "/data/gencode.v38lift37.annotation.sorted.gtf.gz", help="GTF file")
 parser.add_argument("--fasta", "-f", metavar="Genome FASTA file", default="/data/Clinomics/Ref/khanlab/ucsc.hg19.fasta", help="Genome FASTA file")
-parser.add_argument("--isoform_expression_file", "-e", metavar="Isoform expression file in RSEM format", help="Isoform expression file in RSEM format")
+parser.add_argument("--isoform_expression_file", "-m", metavar="Isoform expression file in RSEM format", help="Isoform expression file in RSEM format")
 parser.add_argument("--canonical_trans_file", "-n", metavar="Canonical transcript list", default="data/canonical_transcripts_with_ensembl.txt", help="Conoical transcript list (default: %(default)s)")
 parser.add_argument("--fusion_cancer_gene_list", "-u", metavar="Fusion cancer gene pair list", default="data/sanger_mitelman_pairs.txt", help="Fusion cancer gene pair list (default: %(default)s)")
 parser.add_argument("--cancer_gene_list", "-c", metavar="Cancer gene list", default="data/clinomics_gene_list.txt", help=" (default: %(default)s)Cancer gene list")
 parser.add_argument("--pfam_file", "-p", metavar="Pfam domain file", default=script_dir + "/PfamDB", help="Pfam domain file (default: %(default)s)")
 parser.add_argument("--input", "-i", metavar="Fusion file", required=True, default="/data/khanlab/projects/processed_DATA/RMS2074/Research/Actionable/RMS2074.fusion.actionable.txt", help="Fusion file")
 parser.add_argument("--output", "-o", metavar="output file", help="output file", required=True)
-parser.add_argument("--domain_file", "-d", metavar="Pfam domain file", default=script_dir + "/data/ensembl_domain.tsv", help="Pfam domain file (default: %(default)s)")
+parser.add_argument("--domain_file", "-d", metavar="Pfam domain file", default=script_dir + "/data/gencode.v38lift37.domains.tsv", help="Pfam domain file (default: %(default)s)")
 parser.add_argument("--threads", "-t", metavar="Number of threads", type=int, default=avail_threads, help="Number of threads (default: %(default)s)")
 args = parser.parse_args()
 

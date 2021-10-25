@@ -1,6 +1,6 @@
 #!/usr/bin/python
 import re
-import os,subprocess
+import os,subprocess,io
 import pandas as pd
 import yaml
 import sys
@@ -8,6 +8,8 @@ import argparse
 import tempfile
 import threading
 import json
+import pysam
+import logging
 from gtfparse import read_gtf
 from Bio import SeqIO
 from Bio.Seq import Seq
@@ -56,8 +58,15 @@ def remove_ensembl_version(s):
     return a[0]
     
 class Genome:
-    def __init__(self, gtf_file, fasta_file, canonical_trans_file=None, domain_file=None, isoform_expression_file=None):
-        self._gtf = read_gtf(gtf_file)
+    def __init__(self, gtf_file, gene_bed_file, fasta_file, canonical_trans_file=None, domain_file=None, isoform_expression_file=None):
+        self._gtf = pysam.TabixFile(gtf_file)
+        self._gene_bed = pd.read_csv(gene_bed_file, delimiter = "\t")
+        gene_ids = self._gene_bed["gene_id"].apply(lambda x: remove_ensembl_version(x))
+        self._gene_bed["gene_id"] = gene_ids
+        self._gene_bed["gene_name"] = self._gene_bed["gene_name"].str.upper()
+        self._gene_bed.set_index("gene_name")
+
+        #self._gtf = read_gtf(gtf_file)
         self._sequences = Fasta(fasta_file, one_based_attributes=True)
         if canonical_trans_file != None:
             self._canonical_trans = pd.read_csv(canonical_trans_file, delimiter = "\t")
@@ -73,13 +82,17 @@ class Genome:
             self._isoform_expression["transcript_id"] = isoform_ids
             self._isoform_expression.set_index("transcript_id")
             #print(self._isoform_expression.head(5))
-        gene_ids = self._gtf["gene_id"].apply(lambda x: remove_ensembl_version(x))
-        trans_ids = self._gtf["transcript_id"].apply(lambda x: remove_ensembl_version(x))
-        self._gtf["gene_id"] = gene_ids
-        self._gtf["transcript_id"] = trans_ids
-        self._gtf["gene_name"] = self._gtf["gene_name"].str.upper()
-        self._gtf.set_index("gene_name")
+        #gene_ids = self._gtf["gene_id"].apply(lambda x: remove_ensembl_version(x))
+        #trans_ids = self._gtf["transcript_id"].apply(lambda x: remove_ensembl_version(x))
+        #self._gtf["gene_id"] = gene_ids
+        #self._gtf["transcript_id"] = trans_ids
+        #self._gtf["gene_name"] = self._gtf["gene_name"].str.upper()
+        #self._gtf.set_index("gene_name")
     
+    @property
+    def gene_bed(self):
+        return self._gene_bed
+        
     @property
     def gtf(self):
         return self._gtf
@@ -141,9 +154,9 @@ class Transcript:
         self._expression = "NA"
         self._trans_gtf = gene.gtf[gene.gtf["transcript_id"]==transcript_id]
         if genome.isoform_expression is not None:
-            exp = genome.isoform_expression[genome.isoform_expression["transcript_id"]==transcript_id]
+            exp = genome.isoform_expression[genome.isoform_expression["transcript_id"]==transcript_id]            
             if not exp.empty:
-                self._expression = exp.iloc[0]["TPM"]
+                self._expression = exp.iloc[0]["TPM"]                
         #self._trans_gtf = gene.gtf[gene.gtf["transcript_id"].str.contains(transcript_id)]
         if not self._trans_gtf.empty:
             self._start = min(self._trans_gtf["start"])
@@ -385,13 +398,30 @@ class Gene:
         self._fusion_cancer_gene = fusion_cancer_gene
         self._cancer_gene = cancer_gene
         self._cancer_gene = cancer_gene
-        self._gtf = genome.gtf[genome.gtf["gene_name"]==symbol.upper()]
-        if self._gtf.empty and symbol[0:4] == "ENSG":
-            #self._gtf = genome.gtf[genome.gtf["gene_id"]==symbol]
-            self._gtf = genome.gtf[genome.gtf["gene_id"]==symbol]
-        
-        can_txs = genome.canonical_trans[genome.canonical_trans["Symbol"]==symbol.upper()]
         self._canonical_transcript_id = ""
+        self._transcript_list = []
+        g_df = genome.gene_bed.loc[(genome.gene_bed["gene_name"]==symbol.upper()) & (genome.gene_bed["seqname"]==chromosome)]
+        if g_df.empty and symbol[0:4] == "ENSG":
+            g_df = genome.gene_bed.loc[(genome.gene_bed["gene_id"]==symbol) & (genome.gene_bed["seqname"]==chromosome)]
+        if g_df.empty:
+            return
+
+        #tbx = pysam.TabixFile("data/gencode.v38lift37.annotation.sorted.gtf.gz")
+        s = io.StringIO("\n".join(genome.gtf.fetch(g_df.iloc[0].seqname, g_df.iloc[0].start, g_df.iloc[0].end, multiple_iterators=True)))
+        #s = io.StringIO("\n".join(tbx.fetch(g_df.iloc[0].seqname, g_df.iloc[0].start, g_df.iloc[0].end)))
+        logging.getLogger().setLevel(logging.ERROR)
+        self._gtf = read_gtf(s)
+        self._gtf["gene_id"] = self._gtf["gene_id"].apply(lambda x: remove_ensembl_version(x))
+        self._gtf["transcript_id"] = self._gtf["transcript_id"].apply(lambda x: remove_ensembl_version(x))
+        self._gtf["gene_name"] = self._gtf["gene_name"].str.upper()
+        self._gtf.set_index("gene_name")        
+        self._gtf = self._gtf.loc[(self._gtf["gene_name"]==symbol.upper()) | (self._gtf["gene_id"]==symbol.upper())]
+        
+        #self._gtf = genome.gtf[genome.gtf["gene_name"]==symbol.upper()]
+        #if self._gtf.empty and symbol[0:4] == "ENSG":
+            #self._gtf = genome.gtf[genome.gtf["gene_id"]==symbol]
+        
+        can_txs = genome.canonical_trans[genome.canonical_trans["Symbol"]==symbol.upper()]        
         if not can_txs.empty:
             self._canonical_transcript_id = can_txs.iloc[0]["Ensembl"]
         self._transcript_list = list(set(self._gtf.loc[self._gtf["feature"]=="transcript"]["transcript_id"].tolist()))
@@ -518,10 +548,14 @@ class FusionEvent:
         # get transcript fusion part first
         for left_tx in self._left_gene.transcript_list:
             left_trans = Transcript(self._genome, self._left_gene, left_tx)
+            if left_trans.protein_length <=10:
+                continue
             self._left_results[left_tx] = left_trans.getFusionSequence(self._left_position, True)
             self._left_trans_info[left_tx] = {"chr": self._left_gene.chromosome, "strand": left_trans.strand, "exon_info": left_trans.exonInfo, "expression": left_trans.expression, "seq_to_ss": self._left_results[left_tx].extend_info["seq"], "domains": left_trans.domains, "protein_length": left_trans.protein_length, "cdna":self._left_results[left_tx].sequence}
         for right_tx in self._right_gene.transcript_list:
             right_trans = Transcript(self._genome, self._right_gene, right_tx)
+            if right_trans.protein_length <=10:
+                continue
             self._right_results[right_tx] = right_trans.getFusionSequence(self._right_position, False)
             self._right_trans_info[right_tx] = {"chr": self._right_gene.chromosome, "strand": right_trans.strand, "exon_info": right_trans.exonInfo,  "expression": right_trans.expression, "seq_to_ss": self._right_results[right_tx].extend_info["seq"], "domains": right_trans.domains, "protein_length": right_trans.protein_length, "cdna":self._right_results[right_tx].sequence}
         # get fused transcript for all combination
@@ -529,15 +563,15 @@ class FusionEvent:
         rep_tier = 99
         canonical_tier = 99
         # if no annotation found
-        if len(self._left_gene.transcript_list) == 0 or len(self._right_gene.transcript_list) == 0:
+        if len(self._left_trans_info.keys()) == 0 or len(self._right_trans_info.keys()) == 0:
             tier = self.getTier(TYPE_NO_ANNOTATION)
             self._rep_result = {"left_trans":"NA", "right_trans":"NA", "type": TYPE_NO_ANNOTATION, "tier": tier, \
                 "fuse_nucl_position": 0, "fuse_pep_position" : 0, "left_location": "NA", "left_exon_number": "NA", "right_location": "NA", "right_exon_number": "NA"}
         #look for representative fusion: we use canonical transcripts. if there is no defined canonical transcripts, use the best tier pair
-        for left_tx in self._left_gene.transcript_list:
+        for left_tx in self._left_trans_info.keys():
             is_left_canonical = (left_tx == self._left_gene.canonical_transcript_id)
             left_result = self._left_results[left_tx]
-            for right_tx in self._right_gene.transcript_list:
+            for right_tx in self._right_trans_info.keys():
                 key = left_tx + ":" + right_tx
                 right_result = self._right_results[right_tx]
                 is_right_canonical = (right_tx == self._right_gene.canonical_transcript_id)
