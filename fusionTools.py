@@ -93,16 +93,11 @@ def main(args):
     logging.info("threads assigned:" + str(num_threads))
     logging.info("total cpus:" + str(avail_threads))
     if avail_threads < num_threads:
-        num_threads = avail_threads - 1
-    logging.info("total " + str(num_threads) + " are used")
+        num_threads = avail_threads - 1    
     in_list = pd.read_csv(in_file, delimiter = "\t")
     fusion_list = {}
     #combine fusion callers
-    for index, row in in_list.iterrows():
-        if 1==2:
-           target_gene = "FOXO1"
-           if row[0] != target_gene and row[1] != target_gene:
-              continue
+    for index, row in in_list.iterrows():        
         s = ":"
         rc = "NA"
         if "SpanReadCount" in row:
@@ -115,7 +110,12 @@ def main(args):
             fusion_list[key] = [{row["Tool"]:rc}]
     chunks = []
     total_events = len(fusion_list)
-    num_in_chunk = (int)(total_events/(num_threads-1))
+    if num_threads < 2:
+        num_threads = 1
+        num_in_chunk = total_events
+    else:
+        num_in_chunk = (int)(total_events/(num_threads-1))
+    logging.info("total " + str(num_threads) + " are used")
     logger.info("total events:" + str(total_events))
     logger.info("num_in_chunk:" + str(num_in_chunk))
     i = 0
