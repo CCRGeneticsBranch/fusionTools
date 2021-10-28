@@ -173,7 +173,8 @@ def main(args):
             gene_info_str = sep.join(map(lambda x: "Y" if x else "N", gene_info))
             of.writelines(key_str + "\t" + json.dumps(tools) + "\t" + rep_str + "\t" + gene_info_str + "\t" + json.dumps(fuse_peps) + "\t" + json.dumps(left_trans_info) + "\t" + json.dumps(right_trans_info) + "\n")
     of.close()
-    process_time = datetime.now()-start    
+    process_time = datetime.now()-start
+    logging.getLogger().setLevel(logging.INFO)
     logger.info(init_time)
     logger.info(process_time)
     
