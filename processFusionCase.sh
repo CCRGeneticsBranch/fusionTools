@@ -77,9 +77,6 @@ if [ -z $out_dir ];then
 	out_dir=$path
 fi
 
-module load python/3.7
-module load hmmer/3.3.2
-
 mkdir -p $out_dir/$patient_id/$case_id/$patient_id/db
 out_file="$out_dir/$patient_id/$case_id/$patient_id/db/${patient_id}.fusion.txt"
 rm -f $out_file

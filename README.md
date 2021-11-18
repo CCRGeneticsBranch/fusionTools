@@ -85,6 +85,17 @@ export PERL5LIB=/[your installation path]/PfamScan:${PERL5LIB}
 
 ### Run with Docker
 
+Example:
+```
+sudo docker run -v /data:/data fusion_tools:v1 fusionTools.py \
+	-i /data/processed_DATA/CP02796/RT-0391/Actionable/CP02796.fusion.actionable.txt \
+	-o /data/processed_DATA/CP02796/RT-0391/CP02796/db/CP02796.fusion.txt \
+	-m /data/processed_DATA/CP02796/RT-0391/CP02796_T2R_T2/RSEM/CP02796_T2R_T2.rsem.isoforms.results \
+	-p /data/ref/PfamDB \
+	-f /data/ref/hg19.fasta \
+	-t 4
+```
+
 ### Run with Singularity
 
 ### Run without Docker/Singularity
