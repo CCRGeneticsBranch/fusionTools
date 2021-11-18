@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 #SBATCH --partition=norm,ccr
 #SBATCH --cpus-per-task=64
 #SBATCH --mem=80G
