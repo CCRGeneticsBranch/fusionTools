@@ -17,14 +17,14 @@ from dataclasses import dataclass
        
 class FusionClassifier(threading.Thread):
     
-    def __init__(self, genome, fusion_list, fusion_cancer_genes, fusion_cancer_pairs, cancer_genes, pfam_file):
+    def __init__(self, genome, fusion_list, fusion_cancer_genes, fusion_cancer_pairs, cancer_genes, pfam_dir):
         threading.Thread.__init__(self)
         self._genome = genome
         self._fusion_list = fusion_list        
         self._fusion_cancer_genes = fusion_cancer_genes
         self._fusion_cancer_pairs = fusion_cancer_pairs
         self._cancer_genes = cancer_genes
-        self._pfam_file = pfam_file        
+        self._pfam_dir = pfam_dir        
         self._results = {}
         self._detailed_results = {}
     
@@ -49,7 +49,7 @@ class FusionClassifier(threading.Thread):
             cancer_pair = (left_symbol + " " + right_symbol) in self._fusion_cancer_pairs
             right_gene = Gene(self._genome, right_symbol, right_chr, right_position, right_fusion_cancer_gene, right_cancer_gene)
             
-            event = FusionEvent(self._genome, left_gene, left_position, right_gene, right_position, cancer_pair, self._pfam_file)
+            event = FusionEvent(self._genome, left_gene, left_position, right_gene, right_position, cancer_pair, self._pfam_dir)
             (rep_result, fuse_peps, left_results, right_results, left_trans_info, right_trans_info) = event.process()
             gene_info = [left_fusion_cancer_gene, right_fusion_cancer_gene, left_cancer_gene, right_cancer_gene]
             key_info = [left_gene.symbol_label, right_gene.symbol_label, left_chr, left_position, right_chr, right_position, sample]
@@ -66,7 +66,7 @@ def main(args):
     canonical_trans_file= args.canonical_trans_file.strip()
     in_file = args.input.strip()
     out_file = args.output.strip()
-    pfam_file = args.pfam_file.strip()
+    pfam_dir = args.pfam_dir.strip()
     domain_file = args.domain_file.strip()
     num_threads = args.threads
     fusion_cancer_file = args.fusion_cancer_gene_list.strip()
@@ -88,7 +88,7 @@ def main(args):
     logging.info("GTF:" + gtf_file)
     logging.info("Domain file:" + domain_file)
     logging.info("Canonical file:" + canonical_trans_file)
-    logging.info("PfamDB:" + pfam_file) 
+    logging.info("PfamDB:" + pfam_dir) 
     start=datetime.now()
     #prepare GTF, canonical list and cancer gene list
     genome = Genome(gtf_file, gene_bed_file, fasta_file, canonical_trans_file, domain_file, isoform_expression_file)
@@ -139,7 +139,7 @@ def main(args):
     fusion_cancer_genes = {}
     fusion_cancer_pairs = {}
     cancer_genes = {}
-    pfam_file = pfam_file
+    pfam_dir = pfam_dir
     with open(fusion_cancer_file) as f:
         for line in f:
             (lg, rg) = line.split("\t")
@@ -157,7 +157,7 @@ def main(args):
     start=datetime.now()
     fusionClassifiers = []
     for c in chunks:
-        fusionClassifier = FusionClassifier(genome, c, fusion_cancer_genes, fusion_cancer_pairs, cancer_genes, pfam_file)
+        fusionClassifier = FusionClassifier(genome, c, fusion_cancer_genes, fusion_cancer_pairs, cancer_genes, pfam_dir)
         fusionClassifier.start()
         fusionClassifiers.append(fusionClassifier)
     
@@ -195,15 +195,15 @@ script_dir = os.path.dirname(os.path.abspath(__file__))
 avail_threads = os.cpu_count() -1
 parser = argparse.ArgumentParser(description='Classify fusion types.')
 parser.add_argument("--input", "-i", metavar="Fusion file", required=True, help="[Fusion input file]")
+parser.add_argument("--output", "-o", metavar="output file", help="[output file]", required=True)
+parser.add_argument("--fasta", "-f", metavar="Genome FASTA file", help="Genome FASTA file", required=True)
+parser.add_argument("--pfam_dir", "-p", metavar="Pfam domain folder", help="Pfam domain file", required=True)
 parser.add_argument("--isoform_expression_file", "-m", metavar="Isoform expression file in RSEM format", help="Isoform expression file in RSEM format")
-parser.add_argument("--fasta", "-f", metavar="Genome FASTA file", help="Genome FASTA file")
-parser.add_argument("--pfam_file", "-p", metavar="Pfam domain file", default=script_dir + "/PfamDB", help="Pfam domain file (default: %(default)s)")
 parser.add_argument("--gtf", "-g", metavar="GTF file", default=script_dir + "/data/gencode.v36lift37.annotation.sorted.gtf.gz", help="GTF file")
 parser.add_argument("--canonical_trans_file", "-n", metavar="Canonical transcript list", default=script_dir + "/data/gencode.v36lift37.canonical.txt", help="Conoical transcript list (default: %(default)s)")
 parser.add_argument("--fusion_cancer_gene_list", "-u", metavar="Fusion cancer gene pair list", default=script_dir + "/data/sanger_mitelman_pairs.txt", help="Fusion cancer gene pair list (default: %(default)s)")
 parser.add_argument("--cancer_gene_list", "-c", metavar="Cancer gene list", default=script_dir + "/data/clinomics_gene_list.txt", help=" (default: %(default)s)Cancer gene list")
-parser.add_argument("--output", "-o", metavar="output file", help="[output file]", required=True)
-parser.add_argument("--domain_file", "-d", metavar="Pfam domain file", default=script_dir + "/data/gencode.v36lift37.domains.tsv", help="[Pfam domain file (default: %(default)s)]")
+parser.add_argument("--domain_file", "-d", metavar="Domain file", default=script_dir + "/data/gencode.v36lift37.domains.tsv", help="[Pfam domain file (default: %(default)s)]")
 parser.add_argument("--threads", "-t", metavar="(Number of threads)", type=int, default=avail_threads, help="[Number of threads (default: %(default)s)]")
 try:
     args = parser.parse_args()

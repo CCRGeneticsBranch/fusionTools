@@ -89,16 +89,22 @@ export PERL5LIB=/[your installation path]/PfamScan:${PERL5LIB}
 
 ### Run without Docker/Singularity
 
+#### Process the single fusion file
+
 ```
-python fusionTools.py 
-usage: fusionTools.py [-h] --input Fusion file
-                      [--isoform_expression_file Isoform expression file in RSEM format]
-                      [--fasta Genome FASTA file]
-                      [--pfam_file Pfam domain file] [--gtf GTF file]
+usage: fusionTools.py 
+
+Required:
+                      [--input, -i Fusion file]
+                      [--output output file ]
+                      [--fasta, -f Genome FASTA file]
+                      [--pfam_file, -p Pfam domain file]
+Optional:
+                      [--isoform_expression_file, -m Isoform expression file in RSEM format]
+                      [--gtf GTF file]
                       [--canonical_trans_file Canonical transcript list]
                       [--fusion_cancer_gene_list Fusion cancer gene pair list]
-                      [--cancer_gene_list Cancer gene list] 
-                      [--output output file 
+                      [--cancer_gene_list Cancer gene list]
                       [--domain_file Pfam domain file]
                       [--threads Number of threads]
 
@@ -115,12 +121,44 @@ usage: fusionTools.py [-h] --input Fusion file
     output: output files
     threads: number of threads
     
-## Example
+##### Example
 ```
 module load python
 module load hmmer
 export PERL5LIB=/your_pfam_scan_path:$PERL5LIB
 python fusionTools -g hg19.refseq.gtf -f genome.fa -i fusion_list.txt -o processed_fusion_list.txt -t 16
+```
+
+#### Process the case
+
+We also developed a script that can process khanlab pipeline cases:
+```
+usage: processFusionCase.h 
+
+required:
+-d: processed data path
+-p: patient ID
+-c: case ID
+-f: Pfam DB folder
+-g: Genome fasta
+
+optional:
+-t: number of threads. (default: SLURM_CPUS_PER_TASK variable)
+-o: output folder (default: same as input folder)
+-v: Gencode version (default: 37)
+
+```
+
+##### Example:
+
+```
+./processFusionCase.sh -d /data/Compass/Analysis/ProcessedResults_NexSeq/ExomeRNA_Results \
+                       -p CP02796 \
+                       -c RT-0391 \
+                       -f /data/Clinomics/Ref/khanlab/PfamDB \
+                       -g /data/Clinomics/Ref/khanlab/ucsc.hg19.fasta \
+                       -v 36
+
 ```
 
 Input example
@@ -135,7 +173,7 @@ Output example:
 
 |left_gene|right_gene|left_chr|right_chr|left_position|right_position|sample_id|tools|type|tier|left_region|right_region|left_trans|right_trans|left_fusion_cancer_gene|right_fusion_cancer_gene|left_cancer_gene|right_cancer_gene|fusion_proteins|left_trans_info|right_trans_info|
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-|PAX7|FOXO1|chr1|19029790|chr13|41134997|RMS2074_D1C5FACXX|[{"FusionCatcher": 17}, {"STAR-fusion": 20}, {"tophatFusion": 24}]|in-frame|1.1|CDS|CDS|NM_001135254|NM_002015|Y|Y|Y|Y|{"MAALPGT...VSG*": {"domains": ...}}|...|...|
+|PAX7|FOXO1|chr1|19029790|chr13|41134997|RMS2074_D1C5FACXX|[{"FusionCatcher": 17}, {"STAR-fusion": 20}, {"tophatFusion": 24}]|in-frame|1.1|CDS:exon4|CDS:exon2|NM_001135254|NM_002015|Y|Y|Y|Y|{"MAALPGT...VSG*": {"domains": ...}}|...|...|
 |AMD1|FARS2|chr6|111196418|chr6|5545413|RMS2074_D1C5FACXX|[{"STAR-fusion": 2}]|out-of-frame|4.3|CDS|CDS|NM_001634|NM_006567|N|N|N|N|{"MEAAHFF...}|...|...|
 
 ## Visaulization (not implemented yet)

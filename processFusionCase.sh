@@ -95,7 +95,9 @@ for fn in $path/$patient_id/$case_id/*/fusion/*.actionable.fusion.txt;do
 		dn=$(dirname "$dn")
 		sample_id=$(basename "$dn")
 		exp_file=$path/$patient_id/$case_id/$sample_id/RSEM_ENS/${sample_id}.rsem_ENS.isoforms.results
-		
+		if [ ! -f exp_file ];then
+			exp_file=$path/$patient_id/$case_id/$sample_id/RSEM/${sample_id}.rsem.isoforms.results
+		fi
 		mkdir -p $out_dir/$patient_id/$case_id/$sample_id/fusion
 		out_smp_file="$out_dir/$patient_id/$case_id/$sample_id/fusion/${sample_id}.annotated.txt"
 		if [ -f $exp_file ];then
