@@ -13,7 +13,7 @@ def main(in_file, out_file, pfam):
             sequence = row[1]
             domains = predictPfam(sequence, pfam)
             #domains = []
-            of.write(row[0] + "\t" + sequence + "\t" + str(row[2]) + "\t" + json.dumps(domains) + "\n")
+            of.write(row[0] + "\t" + str(row[2]) + "\t" + json.dumps(domains) + "\n")
     of.close()
 
 script_dir = os.path.dirname(os.path.abspath(__file__))

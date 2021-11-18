@@ -7,40 +7,107 @@ The objectives of fusionTools are:
 3. Tier the importance of the fusion events
 4. Visualize the results in html format
 
-## Required packages
+## Installation
 
-### Python packages
+### 1. Download Pfam domain database
 
-1. gtfparse
-2. Bio.Seq
-3. pyfaidx
+Please download Pfam domain database: http://ftp.ebi.ac.uk/pub/databases/Pfam/current_release/Pfam-A.hmm.gz
+Then
+```
+module load hmmer
+gunzip Pfam-A.hmm.gz
+hmmpress Pfam-A.hmm
+```
 
-### Perl packages
-1. PfamScan (https://www.ebi.ac.uk/Tools/pfa/pfamscan/)
+If you do not have hmmer in your system, please goto http://hmmer.org/ to download and install it.
 
-### hmmer 3.x
+### 2. Download genome FASTA file
 
-http://hmmer.org/download.html
+You can download the genome FASTA file from: https://www.gencodegenes.org/human/release_36lift37.html or https://hgdownload.soe.ucsc.edu/downloads.html
 
-## Run fusionTools
+#### 2.1 Unzip file
+Plase unzip/gunzip the file after the file is downloaded.
+```
+gunzip hg19.fa.gz
+```
+
+#### 2.2 Index file
+```
+samtools faidx hg19.fa.gz
+```
+
+### 3.1 Pull Docker/Singularity image
+
+The easiest way to run fusionTool is use docker image.
+
+#### 3.1.1 Docker
+```
+docker pull hsienchao/fusion_tools:v1
+```
+
+#### 3.1.2 Singularity
+```
+module load singularity
+export SINGULARITY_CACHEDIR=/data/somewhere
+singularity pull docker://hsienchao/fusion_tools:v1
+```
+
+### 3.2 Do not use Docker/Singularity image
+
+If you want to install required packages/softwares by yourself, please follow the instructions:
+
+#### 3.2.1 Pull the code from Github
+
+```
+git clone https://github.com/CCRGeneticsBranch/fusionTools.git
+```
+
+#### 3.2.1 Python packages
+
+1. Install python 3.7+ in your system.
+2. Install required packages:
+
+```
+pip install --upgrade gtfparse pyfaidx dataclasses pysam pyyaml Bio numpy pandas pybedtools
+```
+
+#### 3.2.2 Hmmer
+
+Hmmer is a tool to predict protein domains. Please download and install by following the instruction on http://hmmer.org/
+
+#### 3.2.3 Add PfamScan Perl global variable
+
+```
+export PERL5LIB=/[your installation path]/PfamScan:${PERL5LIB}
+```
+
+## Run fusionTool
+
+### Run with Docker
+
+### Run with Singularity
+
+### Run without Docker/Singularity
 
 ```
 python fusionTools.py 
-usage: fusionTools.py [-h] 
-                      [--gtf GTF file] 
+usage: fusionTools.py [-h] --input Fusion file
+                      [--isoform_expression_file Isoform expression file in RSEM format]
                       [--fasta Genome FASTA file]
+                      [--pfam_file Pfam domain file] [--gtf GTF file]
                       [--canonical_trans_file Canonical transcript list]
                       [--fusion_cancer_gene_list Fusion cancer gene pair list]
-                      [--cancer_gene_list Cancer gene list]
+                      [--cancer_gene_list Cancer gene list] 
+                      [--output output file 
                       [--domain_file Pfam domain file]
-                      [--input] --input Fusion file
-                      [--output] output file 
                       [--threads Number of threads]
+
 ```
 
     gtf: GTF file
     fasta: Genome FASTA file
-    canonical_trans_file: two column canonical transcript file (default: Refseq Mann list)
+    isoform_expression_file: RSEM format isoform expression file
+    canonical_trans_file: Ensembl canonical transcript file
     fusion_cancer_gene_list: two column fusion gene pair list (default: Sanger Mitelman list)
     cancer_gene_list: one column cancer gene symbol list
     pfam_file: Pfam domain file

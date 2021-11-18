@@ -1,6 +1,10 @@
 #!/usr/bin/python
 import re
 import os,subprocess,io
+import warnings
+from Bio import BiopythonWarning
+warnings.simplefilter(action='ignore', category=FutureWarning)
+warnings.simplefilter('ignore', BiopythonWarning)
 import pandas as pd
 import yaml
 import sys
@@ -16,6 +20,7 @@ from Bio.Seq import Seq
 from pyfaidx import Fasta
 from datetime import datetime
 from dataclasses import dataclass
+from pybedtools import BedTool
 
 STATUS_CODING = "STATUS_CODING"
 STATUS_INTERGENIC = "STATUS_INTERGENIC"
@@ -60,7 +65,9 @@ def remove_ensembl_version(s):
 class Genome:
     def __init__(self, gtf_file, gene_bed_file, fasta_file, canonical_trans_file=None, domain_file=None, isoform_expression_file=None):
         self._gtf = pysam.TabixFile(gtf_file)
+        self._gene_bedtool_obj = BedTool(gene_bed_file)
         self._gene_bed = pd.read_csv(gene_bed_file, delimiter = "\t")
+        self._gene_bed.columns = ['seqname','start','end','strand','gene_id','gene_name']
         gene_ids = self._gene_bed["gene_id"].apply(lambda x: remove_ensembl_version(x))
         self._gene_bed["gene_id"] = gene_ids
         self._gene_bed["gene_name"] = self._gene_bed["gene_name"].str.upper()
@@ -89,6 +96,10 @@ class Genome:
         #self._gtf["gene_name"] = self._gtf["gene_name"].str.upper()
         #self._gtf.set_index("gene_name")
     
+    @property
+    def gene_bedtool_obj(self):
+        return self._gene_bedtool_obj
+        
     @property
     def gene_bed(self):
         return self._gene_bed
@@ -152,11 +163,13 @@ class Transcript:
         self._gene = gene
         self._transcript_id = transcript_id
         self._expression = "NA"
+        self._is_canonical = (transcript_id == gene.canonical_transcript_id);
+        self._is_mane = (transcript_id == gene.mane_transcript_id);
         self._trans_gtf = gene.gtf[gene.gtf["transcript_id"]==transcript_id]
         if genome.isoform_expression is not None:
             exp = genome.isoform_expression[genome.isoform_expression["transcript_id"]==transcript_id]            
             if not exp.empty:
-                self._expression = exp.iloc[0]["TPM"]                
+                self._expression = exp.iloc[0]["TPM"]
         #self._trans_gtf = gene.gtf[gene.gtf["transcript_id"].str.contains(transcript_id)]
         if not self._trans_gtf.empty:
             self._start = min(self._trans_gtf["start"])
@@ -170,7 +183,7 @@ class Transcript:
                 domains_df = genome.domains[genome.domains["trans"]==tid]
                 if not domains_df.empty:
                     self._domains = domains_df.iloc[0]["domains"]
-                    self._protein_length = int(domains_df.iloc[0]["protein_length"])
+                    self._protein_length = int(domains_df.iloc[0]["protein_length"]) + 1
             self._trans_gtf = self._trans_gtf[self._trans_gtf['feature'] != "gene"]
             #print(self._strand)
     
@@ -208,8 +221,7 @@ class Transcript:
             status = STATUS_INTERGENIC
         if breakpoint > self._end:
             location = "downstream" if self._strand=="+" else "upstream"
-            status = STATUS_INTERGENIC
-        
+            status = STATUS_INTERGENIC        
         exons = self.getFeature('exon')
         if exons.empty:
             return FusionElement(self, STATUS_NO_EXONS, location, exon_number, "", extend_info)
@@ -266,23 +278,22 @@ class Transcript:
             previous_start = start
             previous_end = end
             previous_en = en
-        #print(self._transcript_id)
-        #print(str(exon_info))
+        
         
         if cdses.empty:
             status = STATUS_NO_CDS        
-            
-        if breakpoint < cds_start and status != STATUS_NO_CDS and exon_number != "NA":
-            utr_type = "5UTR" if self._strand == "+" else "3UTR"
-            location = utr_type
-            status = STATUS_UTR            
-        if breakpoint > cds_end and status != STATUS_NO_CDS and exon_number != "NA":
-            utr_type = "3UTR" if self._strand == "+" else "5UTR"
-            location = utr_type
-            status = STATUS_UTR            
+        if status != STATUS_INTERGENIC: 
+            if breakpoint < cds_start and status != STATUS_NO_CDS and exon_number != "NA":
+                utr_type = "5UTR" if self._strand == "+" else "3UTR"
+                location = utr_type
+                status = STATUS_UTR            
+            if breakpoint > cds_end and status != STATUS_NO_CDS and exon_number != "NA":
+                utr_type = "3UTR" if self._strand == "+" else "5UTR"
+                location = utr_type
+                status = STATUS_UTR            
         
         #we don't need to calculate the fusion sequence
-        if status == STATUS_INTERGENIC or status == STATUS_INTRON_SPLICE_SITE_DISTAL or status == STATUS_NO_CDS:
+        if status == STATUS_INTRON_SPLICE_SITE_DISTAL or status == STATUS_NO_CDS:
             return FusionElement(self, status, location, exon_number, "", extend_info)
             
         #loop CDSs to get sequence
@@ -355,7 +366,15 @@ class Transcript:
                 extend_info["seq"] = str(Seq(extend_info["seq"]).reverse_complement())
         #print(extend_info)
         return FusionElement(self, status, location, exon_number, tx_seq, extend_info)
-        
+    
+    @property
+    def is_canonical(self):
+        return self._is_canonical
+    
+    @property
+    def is_mane(self):
+        return self._is_mane
+    
     def getFeature(self, feature="CDS"):
         if feature == "CDS":
             try:
@@ -391,20 +410,47 @@ class Transcript:
         
 class Gene:
     
-    def __init__(self, genome, symbol, chromosome, fusion_cancer_gene=False, cancer_gene=False):
-        self._genome = genome
+    def __init__(self, genome, symbol, chromosome, position, fusion_cancer_gene=False, cancer_gene=False):
+        #Arriba might output multiple symbols
+        self._symbol_label = symbol
+        symbols = symbol.split(",")
+        if len(symbols) > 1:
+            min_dist = sys.maxsize
+            current_symbol = symbol
+            for s in symbols:
+                search=re.search('(.*)\((.*)\)', s)
+                if search:
+                    sb = search.group(1)
+                    dist = search.group(2)
+                    if dist.isnumeric():
+                        dist = int(dist)
+                        if dist < min_dist:
+                            current_symbol = sb
+                            min_dist = dist
+            symbol = current_symbol
+        self._genome = genome        
         self._symbol = symbol
         self._chromosome = chromosome
         self._fusion_cancer_gene = fusion_cancer_gene
         self._cancer_gene = cancer_gene
         self._cancer_gene = cancer_gene
         self._canonical_transcript_id = ""
+        self._mane_transcript_id = ""
         self._transcript_list = []
         g_df = genome.gene_bed.loc[(genome.gene_bed["gene_name"]==symbol.upper()) & (genome.gene_bed["seqname"]==chromosome)]
+        #if cannot find symbol, try Ensembl accession
         if g_df.empty and symbol[0:4] == "ENSG":
             g_df = genome.gene_bed.loc[(genome.gene_bed["gene_id"]==symbol) & (genome.gene_bed["seqname"]==chromosome)]
+        #if still empty, look for nearest gene
         if g_df.empty:
-            return
+            new_symbol = self.getNearestSymbol(genome.gene_bedtool_obj, chromosome, position)
+            if new_symbol != "":
+                self._symbol_label = symbol + "(" + new_symbol + ")"
+                symbol = new_symbol
+                self._symbol = symbol
+                g_df = genome.gene_bed.loc[(genome.gene_bed["gene_name"]==symbol.upper()) & (genome.gene_bed["seqname"]==chromosome)]
+            else:
+                return
 
         #tbx = pysam.TabixFile("data/gencode.v38lift37.annotation.sorted.gtf.gz")
         s = io.StringIO("\n".join(genome.gtf.fetch(g_df.iloc[0].seqname, g_df.iloc[0].start, g_df.iloc[0].end, multiple_iterators=True)))
@@ -416,16 +462,30 @@ class Gene:
         self._gtf["gene_name"] = self._gtf["gene_name"].str.upper()
         self._gtf.set_index("gene_name")        
         self._gtf = self._gtf.loc[(self._gtf["gene_name"]==symbol.upper()) | (self._gtf["gene_id"]==symbol.upper())]
-        
         #self._gtf = genome.gtf[genome.gtf["gene_name"]==symbol.upper()]
         #if self._gtf.empty and symbol[0:4] == "ENSG":
             #self._gtf = genome.gtf[genome.gtf["gene_id"]==symbol]
         
         can_txs = genome.canonical_trans[genome.canonical_trans["Symbol"]==symbol.upper()]        
         if not can_txs.empty:
-            self._canonical_transcript_id = can_txs.iloc[0]["Ensembl"]
+            if can_txs.iloc[0]["Canonical"] == "Y":
+                self._canonical_transcript_id = can_txs.iloc[0]["Ensembl"]
+            if can_txs.iloc[0]["MANE"] == "Y":
+                self._mane_transcript_id = can_txs.iloc[0]["Ensembl"]    
         self._transcript_list = list(set(self._gtf.loc[self._gtf["feature"]=="transcript"]["transcript_id"].tolist()))
     
+    def getNearestSymbol(self, bedtools_obj, chromosome, position):
+        bp_bed = BedTool(chromosome+"\t" + str(position) + "\t" + str(position),from_string=True)
+        symbol = ""
+        nearby = bp_bed.closest(bedtools_obj, d=True,stream=True)
+        for gene in nearby:
+            symbol = gene[-2]
+        return symbol
+    
+    @property
+    def symbol_label(self):
+        return self._symbol_label
+        
     @property
     def gtf(self):
         return self._gtf
@@ -449,7 +509,10 @@ class Gene:
     @property
     def canonical_transcript_id(self):
         return self._canonical_transcript_id
-    
+        
+    @property
+    def mane_transcript_id(self):
+        return self._mane_transcript_id
     @property
     def transcript_list(self):
         return self._transcript_list
@@ -548,26 +611,27 @@ class FusionEvent:
         # get transcript fusion part first
         for left_tx in self._left_gene.transcript_list:
             left_trans = Transcript(self._genome, self._left_gene, left_tx)
-            if left_trans.protein_length <=10:
-                continue
+            #if left_trans.protein_length <=10:
+            #    continue
             self._left_results[left_tx] = left_trans.getFusionSequence(self._left_position, True)
-            self._left_trans_info[left_tx] = {"chr": self._left_gene.chromosome, "strand": left_trans.strand, "exon_info": left_trans.exonInfo, "expression": left_trans.expression, "seq_to_ss": self._left_results[left_tx].extend_info["seq"], "domains": left_trans.domains, "protein_length": left_trans.protein_length, "cdna":self._left_results[left_tx].sequence}
+            self._left_trans_info[left_tx] = {"chr": self._left_gene.chromosome, "strand": left_trans.strand, "is_canonical": left_trans.is_canonical, "is_mane": left_trans.is_mane, "exon_info": left_trans.exonInfo, "expression": left_trans.expression, "seq_to_ss": self._left_results[left_tx].extend_info["seq"], "domains": left_trans.domains, "protein_length": left_trans.protein_length, "cdna":self._left_results[left_tx].sequence}
         for right_tx in self._right_gene.transcript_list:
             right_trans = Transcript(self._genome, self._right_gene, right_tx)
-            if right_trans.protein_length <=10:
-                continue
+            #if right_trans.protein_length <=10:
+            #    continue
             self._right_results[right_tx] = right_trans.getFusionSequence(self._right_position, False)
-            self._right_trans_info[right_tx] = {"chr": self._right_gene.chromosome, "strand": right_trans.strand, "exon_info": right_trans.exonInfo,  "expression": right_trans.expression, "seq_to_ss": self._right_results[right_tx].extend_info["seq"], "domains": right_trans.domains, "protein_length": right_trans.protein_length, "cdna":self._right_results[right_tx].sequence}
+            self._right_trans_info[right_tx] = {"chr": self._right_gene.chromosome, "strand": right_trans.strand, "is_canonical": right_trans.is_canonical, "is_mane": right_trans.is_mane, "exon_info": right_trans.exonInfo,  "expression": right_trans.expression, "seq_to_ss": self._right_results[right_tx].extend_info["seq"], "domains": right_trans.domains, "protein_length": right_trans.protein_length, "cdna":self._right_results[right_tx].sequence}
         # get fused transcript for all combination
         fuse_peps = {}
         rep_tier = 99
         canonical_tier = 99
         # if no annotation found
-        if len(self._left_trans_info.keys()) == 0 or len(self._right_trans_info.keys()) == 0:
+        if len(self._left_gene.transcript_list) == 0 or len(self._right_gene.transcript_list) == 0:
             tier = self.getTier(TYPE_NO_ANNOTATION)
             self._rep_result = {"left_trans":"NA", "right_trans":"NA", "type": TYPE_NO_ANNOTATION, "tier": tier, \
                 "fuse_nucl_position": 0, "fuse_pep_position" : 0, "left_location": "NA", "left_exon_number": "NA", "right_location": "NA", "right_exon_number": "NA"}
         #look for representative fusion: we use canonical transcripts. if there is no defined canonical transcripts, use the best tier pair
+        fused_domains = {}
         for left_tx in self._left_trans_info.keys():
             is_left_canonical = (left_tx == self._left_gene.canonical_transcript_id)
             left_result = self._left_results[left_tx]
@@ -581,10 +645,11 @@ class FusionEvent:
                 fuse_nucl_position = 0
                 fuse_pep_position = 0
                 #right gene intact. Ignore the left gene
-                if right_result.location == "upstream" or right_result.location == "5UTR":
+                if (right_result.location == "upstream" or right_result.location == "5UTR") and right_result.sequence != "":
                     type = TYPE_RIGHT_INTACT
                     fuse_nucl_seq = right_result.sequence
-                    fuse_pep = str(Seq(fuse_nucl_seq).translate())                
+                    fuse_pep = str(Seq(fuse_nucl_seq).translate())
+                    fused_domains[fuse_pep] = self._right_trans_info[right_tx]["domains"]
                 elif left_result.sequence != "" and right_result.sequence != "":
                     #if left_result.extend_info["offset"] != 0 and right_result.extend_info["offset"] != 0:
                     #    print(left_result.extend_info["seq"])
@@ -612,6 +677,10 @@ class FusionEvent:
                 if is_left_canonical and is_right_canonical:
                     canonical_tier = tier
                     self._rep_result = fusion_result
+                if (not is_left_canonical) and (self._left_gene.canonical_transcript_id != ""):
+                    continue
+                if (not is_right_canonical) and (self._right_gene.canonical_transcript_id != ""):
+                    continue
                 if canonical_tier == 99:
                     if tier < rep_tier:
                         rep_tier = tier
@@ -623,7 +692,10 @@ class FusionEvent:
         fuse_pep_list = []
         i = 1
         for fuse_pep in sorted_pep_len:
-            domains = predictPfam(fuse_pep, self._pfam_file)  
+            if fuse_pep in fused_domains:
+                domains = fused_domains[fuse_pep]
+            else:
+                domains = predictPfam(fuse_pep, self._pfam_file)  
             types = []
             frs = fuse_peps[fuse_pep]
             for fr in frs:

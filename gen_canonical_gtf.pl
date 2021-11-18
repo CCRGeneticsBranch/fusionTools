@@ -37,7 +37,7 @@ open(IN_FILE, "$source_gtf") or die "Cannot open file $source_gtf";
 open(OUT_GTF, ">$output_gtf") or die "Cannot open file $output_gtf";
 open(OUT_C, ">$canonical_file") or die "Cannot open file $canonical_file";
 open(OUT_C_GTF, ">$canonical_gtf") or die "Cannot open file $canonical_gtf";
-print OUT_C "Symbol\tEnsembl\n";
+print OUT_C "Symbol\tEnsembl\tCanonical\tMANE\n";
 while(<IN_FILE>) {
 	chomp;
 	my @s=split(/\t/);
@@ -46,11 +46,17 @@ while(<IN_FILE>) {
 	if ($tid) {
 		$_ =~ s/gene_name "(.*?)"/gene_name "$1:\Q${tid}\E"/;
 		print OUT_GTF "$_\n";
-		if (/Ensembl_canonical/) {
+		my $is_canonical = (/Ensembl_canonical/)? 'Y': 'N';
+		my $is_mane = (/MANE_Select/)? 'Y': 'N';;
+		if ($is_canonical eq "Y") {
 			print OUT_C_GTF "$_\n";
+		}
+		if ($is_canonical eq "Y" || $is_mane eq "Y") {
 			if ($s[2] eq "transcript") {
-				print OUT_C"$gn\t$tid\n";
+				print OUT_C"$gn\t$tid\t$is_canonical\t$is_mane\n";
 			}
+		}
+		if (/MANE_Select/) {
 		}
 	}
 }
