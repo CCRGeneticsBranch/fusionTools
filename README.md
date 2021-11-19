@@ -83,22 +83,7 @@ export PERL5LIB=/[your installation path]/PfamScan:${PERL5LIB}
 
 ## Run fusionTool
 
-### Run with Docker
-
-Example:
-```
-sudo docker run -v /data:/data fusion_tools:v1 fusionTools.py \
-	-i /data/processed_DATA/CP02796/RT-0391/Actionable/CP02796.fusion.actionable.txt \
-	-o /data/processed_DATA/CP02796/RT-0391/CP02796/db/CP02796.fusion.txt \
-	-m /data/processed_DATA/CP02796/RT-0391/CP02796_T2R_T2/RSEM/CP02796_T2R_T2.rsem.isoforms.results \
-	-p /data/ref/PfamDB \
-	-f /data/ref/hg19.fasta \
-	-t 4
-```
-
-### Run with Singularity
-
-### Run without Docker/Singularity
+### Run fusionTools.py
 
 #### Process the single fusion file
 
@@ -172,6 +157,66 @@ optional:
 
 ```
 
+### Run with Docker
+
+Example:
+```
+sudo docker run -v /data:/data fusion_tools:v1 fusionTools.py \
+	-i /data/processed_DATA/CP02796/RT-0391/Actionable/CP02796.fusion.actionable.txt \
+	-o /data/processed_DATA/CP02796/RT-0391/CP02796/db/CP02796.fusion.txt \
+	-m /data/processed_DATA/CP02796/RT-0391/CP02796_T2R_T2/RSEM/CP02796_T2R_T2.rsem.isoforms.results \
+	-p /data/ref/PfamDB \
+	-f /data/ref/hg19.fasta \
+	-t 4
+```
+
+### Run with Singularity
+
+Usage:
+```
+usage: processFusionCase.h 
+
+required:
+-d: processed data path
+-p: patient ID
+-c: case ID
+-f: Pfam DB folder
+-g: Genome fasta
+
+optional:
+-t: number of threads. (default: SLURM_CPUS_PER_TASK variable)
+-o: output folder (default: same as input folder)
+-v: Gencode version (default: 37)
+```
+
+#### Example 1: 
+```
+singularity exec --bind /data/khanlab/projects/processed_DATA,/data/Clinomics/Ref/khanlab/ fusion_tools_v1.sif processFusionCase.sh \
+                       -d /data/khanlab/projects/processed_DATA \
+                       -p RH4 \
+                       -c Khanlab \
+                       -f /data/Clinomics/Ref/khanlab/PfamDB \
+                       -g /data/Clinomics/Ref/khanlab/ucsc.hg19.fasta
+```
+
+The output file will be: /data/khanlab/projects/processed_DATA/RH4/Khanlab/RH4/db/RH4.fusion.txt
+
+#### Example 2: 
+```
+singularity exec --bind /data/Compass/Analysis/ProcessedResults_NexSeq/ExomeRNA_Results,/data/Clinomics/Ref/khanlab/ fusion_tools_v1.sif processFusionCase.sh \
+                       -d /data/Compass/Analysis/ProcessedResults_NexSeq/ExomeRNA_Results \
+                       -p CP02796 \
+                       -c RT-0391 \
+                       -f /data/Clinomics/Ref/khanlab/PfamDB \
+                       -g /data/Clinomics/Ref/khanlab/ucsc.hg19.fasta \
+                       -v 36
+
+```
+
+The output file will be: /data/Compass/Analysis/ProcessedResults_NexSeq/ExomeRNA_Results/CP02796/RT-0391/CP02796/db/CP02796.fusion.txt
+
+## Input data
+
 Input example
 |LeftGene|RightGene|Chr_Left|Position|Chr_Right|Position|Sample|Tool|SpanReadCount|
 |------- |-------- |------- |------- |---------|--------|------|----|-------------|
@@ -179,6 +224,8 @@ Input example
 |PAX7|FOXO1|chr1|19029790|chr13|41134997|RMSXXX|STAR-fusion|20|
 |PAX7|FOXO1|chr1|19029790|chr13|41134997|RMSXXX|tophatFusion|24|
 |AMD1|FARS2|chr6|111196418|chr6|5545413|RMSXXX|STAR-fusion|2|
+
+## Output data
 
 Output example:
 
