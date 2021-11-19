@@ -40,19 +40,19 @@ samtools faidx hg19.fa.gz
 
 The easiest way to run fusionTool is use docker image.
 
-#### 3.1.1 Docker
+#### 3.1.1 Use Docker
 ```
 docker pull hsienchao/fusion_tools:v1
 ```
 
-#### 3.1.2 Singularity
+#### 3.1.2 Use Singularity
 ```
 module load singularity
 export SINGULARITY_CACHEDIR=/data/somewhere
 singularity pull docker://hsienchao/fusion_tools:v1
 ```
 
-### 3.2 Do not use Docker/Singularity image
+### 3.2 Run fusionTools without Docker/Singularity image
 
 If you want to install required packages/softwares by yourself, please follow the instructions:
 
