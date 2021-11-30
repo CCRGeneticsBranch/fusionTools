@@ -65,7 +65,12 @@ def main(args):
     fasta_file = args.fasta.strip()
     canonical_trans_file= args.canonical_trans_file.strip()
     in_file = args.input.strip()
-    out_file = args.output.strip()
+    out_prefix = args.output.strip()
+    out_file = out_prefix + ".txt"
+    out_html = out_prefix + ".html"
+    cyto_file = args.cytoband_file.strip()
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    temp_file = script_dir + "/data/template.html"
     pfam_dir = args.pfam_dir.strip()
     domain_file = args.domain_file.strip()
     num_threads = args.threads
@@ -183,7 +188,10 @@ def main(args):
             rep_str = sep.join(map(str, [rep_result["type"],  rep_result["tier"], left_region, right_region, rep_result["left_trans"], rep_result["right_trans"]]))
             gene_info_str = sep.join(map(lambda x: "Y" if x else "N", gene_info))
             of.writelines(key_str + "\t" + json.dumps(tools) + "\t" + rep_str + "\t" + gene_info_str + "\t" + json.dumps(fuse_peps) + "\t" + json.dumps(left_trans_info) + "\t" + json.dumps(right_trans_info) + "\n")
+    of.flush()
     of.close()
+    # output html file
+    makeOutputHTML(out_file, out_html, temp_file, cyto_file)
     process_time = datetime.now()-start
     logging.getLogger().setLevel(logging.INFO)
     logger.info(init_time)
@@ -195,7 +203,7 @@ script_dir = os.path.dirname(os.path.abspath(__file__))
 avail_threads = os.cpu_count() -1
 parser = argparse.ArgumentParser(description='Classify fusion types.')
 parser.add_argument("--input", "-i", metavar="Fusion file", required=True, help="[Fusion input file]")
-parser.add_argument("--output", "-o", metavar="output file", help="[output file]", required=True)
+parser.add_argument("--output", "-o", metavar="output prefix", help="[output prefix]", required=True)
 parser.add_argument("--fasta", "-f", metavar="Genome FASTA file", help="Genome FASTA file", required=True)
 parser.add_argument("--pfam_dir", "-p", metavar="Pfam domain folder", help="Pfam domain file", required=True)
 parser.add_argument("--isoform_expression_file", "-m", metavar="Isoform expression file in RSEM format", help="Isoform expression file in RSEM format")
@@ -204,6 +212,7 @@ parser.add_argument("--canonical_trans_file", "-n", metavar="Canonical transcrip
 parser.add_argument("--fusion_cancer_gene_list", "-u", metavar="Fusion cancer gene pair list", default=script_dir + "/data/sanger_mitelman_pairs.txt", help="Fusion cancer gene pair list (default: %(default)s)")
 parser.add_argument("--cancer_gene_list", "-c", metavar="Cancer gene list", default=script_dir + "/data/clinomics_gene_list.txt", help=" (default: %(default)s)Cancer gene list")
 parser.add_argument("--domain_file", "-d", metavar="Domain file", default=script_dir + "/data/gencode.v36lift37.domains.tsv", help="[Pfam domain file (default: %(default)s)]")
+parser.add_argument("--cytoband_file", "-b", metavar="Cytoband file", default=script_dir + "/data/hg19_cytoBand.txt ", help="[Cytoband file (default: %(default)s)]")
 parser.add_argument("--threads", "-t", metavar="(Number of threads)", type=int, default=avail_threads, help="[Number of threads (default: %(default)s)]")
 try:
     args = parser.parse_args()

@@ -78,7 +78,7 @@ if [ -z $out_dir ];then
 fi
 
 mkdir -p $out_dir/$patient_id/$case_id/$patient_id/db
-out_file="$out_dir/$patient_id/$case_id/$patient_id/db/${patient_id}.fusion.txt"
+out_file="$out_dir/$patient_id/$case_id/$patient_id/db/${patient_id}.fusion"
 rm -f $out_file
 for fn in $path/$patient_id/$case_id/*/fusion/*.actionable.fusion.txt;do
 	if [ "$fn" == "$path/$patient_id/$case_id/*/fusion/*.actionable.fusion.txt" ];then
@@ -92,21 +92,24 @@ for fn in $path/$patient_id/$case_id/*/fusion/*.actionable.fusion.txt;do
 		dn=$(dirname "$dn")
 		sample_id=$(basename "$dn")
 		exp_file=$path/$patient_id/$case_id/$sample_id/RSEM_ENS/${sample_id}.rsem_ENS.isoforms.results
-		if [ ! -f exp_file ];then
+		echo $exp_file
+		if [ ! -f $exp_file ];then
 			exp_file=$path/$patient_id/$case_id/$sample_id/RSEM/${sample_id}.rsem.isoforms.results
 		fi
 		mkdir -p $out_dir/$patient_id/$case_id/$sample_id/fusion
-		out_smp_file="$out_dir/$patient_id/$case_id/$sample_id/fusion/${sample_id}.annotated.txt"
+		out_smp_file="$out_dir/$patient_id/$case_id/$sample_id/fusion/${sample_id}.annotated"
+		echo $exp_file
 		if [ -f $exp_file ];then
 			python $script_home/fusionTools.py -i $fn -m $exp_file -o $out_smp_file -t $threads -p $pfam_path -f $genome_fasta  -g $gtf -n $can_file -d $domain_file
 		else 
 			python $script_home/fusionTools.py -i $fn -o $out_smp_file -t $threads -p $pfam_path -f $genome_fasta -g $gtf -n $can_file -d $domain_file
 		fi
 		
-		if [ -f $out_file ];then
-			grep -v ^left_gene $out_smp_file >> $out_file
+		if [ -f ${out_file}.txt ];then
+			grep -v ^left_gene ${out_smp_file}.txt >> ${out_file}.txt
 		else
-			cp $out_smp_file $out_file
-		fi
+			cp ${out_smp_file}.txt ${out_file}.txt
+		fi		
 	fi
 done
+python $script_home/makeOutputHTML.py -i ${out_file}.txt -o ${out_file}.html -t $script_home/data/template.html -c $script_home/data/hg19_cytoBand.txt

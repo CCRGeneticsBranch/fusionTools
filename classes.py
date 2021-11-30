@@ -730,3 +730,43 @@ class FusionEvent:
         f.close()
         os.remove(tmp_in)
         return domains    
+
+def makeOutputHTML(in_file, out_file, temp_file, cyto_file):
+    if_temp = open(temp_file, 'r')
+    of_html = open(out_file,"w")
+    lines = if_temp.readlines()
+    sep=":"
+    for line in lines:
+        if line.rstrip("\n") == "//##json_data":
+            in_text = open(in_file,"r")
+            fusion_lines = in_text.readlines()
+            json_data = {"cols":[{"title":"Details"}], "data":[]}
+            details = {}
+            for fusion_line in fusion_lines:
+                fusion_line = fusion_line.rstrip("\n")
+                fields = fusion_line.split("\t")
+                if len(json_data["cols"]) == 1:
+                    for field in fields:
+                        if len(json_data["cols"]) < len(fields)-2:
+                            title = field.replace("_", " ").title().replace("Id", "ID")
+                            json_data["cols"].append({"title":title})
+                else:
+                    json_data["data"].append([""] + fields[:-3])
+                    key = sep.join(map(str, fields[0:7]))
+                    details[key] = "{\"fusion_proteins\":" + fields[-3] + ", \"left_info\":" + fields[-2] + ", \"right_info\":" + fields[-1] + "}"
+            in_cytoband = open(cyto_file,"r")
+            cyto_lines = in_cytoband.readlines()
+            cyto_data = []
+            for cyto_line in cyto_lines:
+                cyto_line = cyto_line.rstrip("\n")
+                cyto_fields = cyto_line.split("\t")
+                if cyto_fields[0] != "chromosome":
+                    cyto_data.append({"chromosome":cyto_fields[0], "bp_start":cyto_fields[1], "bp_stop":cyto_fields[2], "band":cyto_fields[3], "stain":cyto_fields[4]})
+            of_html.writelines("\tvar json_data=" + json.dumps(json_data) + "\n")
+            of_html.writelines("\tvar detail_data=" + json.dumps(details) + "\n")
+            of_html.writelines("\tvar cyto_data=" + json.dumps(cyto_data) + "\n")
+            in_text.close
+        else:
+            of_html.writelines(line)
+    of_html.close
+    if_temp.close
