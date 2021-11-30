@@ -92,7 +92,7 @@ usage: fusionTools.py
 
 Required:
                       [--input, -i Fusion file]
-                      [--output output file ]
+                      [--output output prefix ]
                       [--fasta, -f Genome FASTA file]
                       [--pfam_file, -p Pfam domain file]
 Optional:
@@ -114,7 +114,7 @@ Optional:
     cancer_gene_list: one column cancer gene symbol list
     pfam_file: Pfam domain file
     input: input fusion list
-    output: output files
+    output: output prefix
     threads: number of threads
     
 ##### Example
@@ -163,7 +163,7 @@ Example:
 ```
 sudo docker run -v /data:/data fusion_tools:v1 fusionTools.py \
 	-i /data/processed_DATA/CP02796/RT-0391/Actionable/CP02796.fusion.actionable.txt \
-	-o /data/processed_DATA/CP02796/RT-0391/CP02796/db/CP02796.fusion.txt \
+	-o /data/processed_DATA/CP02796/RT-0391/CP02796/db/CP02796.fusion \
 	-m /data/processed_DATA/CP02796/RT-0391/CP02796_T2R_T2/RSEM/CP02796_T2R_T2.rsem.isoforms.results \
 	-p /data/ref/PfamDB \
 	-f /data/ref/hg19.fasta \
@@ -227,13 +227,29 @@ Input example
 
 ## Output data
 
-Output example:
+We have two output files:
+
+### Text file
+
+Example:
 
 |left_gene|right_gene|left_chr|right_chr|left_position|right_position|sample_id|tools|type|tier|left_region|right_region|left_trans|right_trans|left_fusion_cancer_gene|right_fusion_cancer_gene|left_cancer_gene|right_cancer_gene|fusion_proteins|left_trans_info|right_trans_info|
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 |PAX7|FOXO1|chr1|19029790|chr13|41134997|RMS2074_D1C5FACXX|[{"FusionCatcher": 17}, {"STAR-fusion": 20}, {"tophatFusion": 24}]|in-frame|1.1|CDS:exon4|CDS:exon2|NM_001135254|NM_002015|Y|Y|Y|Y|{"MAALPGT...VSG*": {"domains": ...}}|...|...|
 |AMD1|FARS2|chr6|111196418|chr6|5545413|RMS2074_D1C5FACXX|[{"STAR-fusion": 2}]|out-of-frame|4.3|CDS|CDS|NM_001634|NM_006567|N|N|N|N|{"MEAAHFF...}|...|...|
 
-## Visaulization (not implemented yet)
+### HTML file
 
-![alt tag](fusionTools.png)
+You can open this file in your local computer. By default, all the in-frame fusions will be displayed.
+![alt tag](main.png)
+
+By clicking the "open" icon, you can see the detailed fusion results at transcript level.
+![alt tag](details.png)
+
+This table is sorted by fusion proteins (many transcript combination has the same protein product). You can click again the open icon to see the fusion plot:
+
+![alt tag](plot.png)
+
+The plot shows both fusion DNA and proteins. The domains are predicted using Pfam. The bottom of the plot is the predicted cDNA and protein sequence.
+
+![alt tag](sequences.png)
