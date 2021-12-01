@@ -221,7 +221,7 @@ class Transcript:
             status = STATUS_INTERGENIC
         if breakpoint > self._end:
             location = "downstream" if self._strand=="+" else "upstream"
-            status = STATUS_INTERGENIC        
+            status = STATUS_INTERGENIC
         exons = self.getFeature('exon')
         if exons.empty:
             return FusionElement(self, STATUS_NO_EXONS, location, exon_number, "", extend_info)
@@ -270,10 +270,10 @@ class Transcript:
                 location = "exon"
                 exon_number = "exon" + str(en)
             # breakpoint in intron
-            if breakpoint > previous_end and breakpoint < start:
+            if breakpoint > previous_end and breakpoint < start and status != STATUS_INTERGENIC:
                 location = "intron"
                 exon_number = "exon" + str(previous_en) + "-exon" + str(en) if en > previous_en else "exon" + str(en) + "-exon" + str(previous_en)
-                if (breakpoint - previous_end) > intron_max and (start - breakpoint) > intron_max: 
+                if (breakpoint - previous_end) > intron_max and (start - breakpoint) > intron_max:
                     status = STATUS_INTRON_SPLICE_SITE_DISTAL
             previous_start = start
             previous_end = end
@@ -337,7 +337,7 @@ class Transcript:
             else:
                 if breakpoint <= end:
                     if breakpoint < start:                        
-                        if breakpoint > previous_end and status != STATUS_UTR:
+                        if breakpoint > previous_end and status != STATUS_UTR and status != STATUS_INTERGENIC:
                             #in intron
                             status = STATUS_INTRON_SPLICE_SITE_DISTAL
                             if start - breakpoint < intron_max:
