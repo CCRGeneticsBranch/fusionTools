@@ -441,18 +441,34 @@ class Gene:
         #if cannot find symbol, try Ensembl accession
         if g_df.empty and symbol[0:4] == "ENSG":
             g_df = genome.gene_bed.loc[(genome.gene_bed["gene_id"]==symbol) & (genome.gene_bed["seqname"]==chromosome)]
-        #if still empty, look for nearest gene
+        #if still empty or multiple values, look for nearest gene
         if g_df.empty:
-            new_symbol = self.getNearestSymbol(genome.gene_bedtool_obj, chromosome, position)
+            #print("No symbol in GTF for gene " + symbol);
+            [new_symbol, new_gene_id] = self.getNearestSymbol(genome.gene_bedtool_obj, chromosome, position, symbol)
             if new_symbol != "":
-                self._symbol_label = symbol + "(" + new_symbol + ")"
-                symbol = new_symbol
-                self._symbol = symbol
-                g_df = genome.gene_bed.loc[(genome.gene_bed["gene_name"]==symbol.upper()) & (genome.gene_bed["seqname"]==chromosome)]
+                if new_symbol != symbol:
+                    self._symbol_label = symbol + "(" + new_symbol + ")"
+                    symbol = new_symbol
+                    self._symbol = symbol
+                g_df = genome.gene_bed.loc[genome.gene_bed["gene_id"]==new_gene_id]
+                #print(new_gene_id + str(g_df))
+            else:
+                return
+                
+        if len(g_df) > 1:
+            #print("Multiple entries for gene " + symbol)
+            [new_symbol, new_gene_id] = self.getNearestSymbol(genome.gene_bedtool_obj, chromosome, position, symbol)
+            if new_symbol != "":
+                if new_symbol != symbol:
+                    self._symbol_label = symbol + "(" + new_symbol + ")"
+                    symbol = new_symbol
+                    self._symbol = symbol
+                g_df = genome.gene_bed.loc[genome.gene_bed["gene_id"]==new_gene_id]
+                #print(new_gene_id + ":" + str(g_df))
             else:
                 return
 
-        #tbx = pysam.TabixFile("data/gencode.v38lift37.annotation.sorted.gtf.gz")
+        #tbx = pysam.TabixFile("data/gencode.v38lift37.annotation.sorted.gtf.gz")        
         s = io.StringIO("\n".join(genome.gtf.fetch(g_df.iloc[0].seqname, g_df.iloc[0].start, g_df.iloc[0].end, multiple_iterators=True)))
         #s = io.StringIO("\n".join(tbx.fetch(g_df.iloc[0].seqname, g_df.iloc[0].start, g_df.iloc[0].end)))
         logging.getLogger().setLevel(logging.ERROR)
@@ -474,13 +490,17 @@ class Gene:
                 self._mane_transcript_id = can_txs.iloc[0]["Ensembl"]    
         self._transcript_list = list(set(self._gtf.loc[self._gtf["feature"]=="transcript"]["transcript_id"].tolist()))
     
-    def getNearestSymbol(self, bedtools_obj, chromosome, position):
+    def getNearestSymbol(self, bedtools_obj, chromosome, position, old_symbol):
         bp_bed = BedTool(chromosome+"\t" + str(position) + "\t" + str(position),from_string=True)
         symbol = ""
+        gene_id = ""
         nearby = bp_bed.closest(bedtools_obj, d=True,stream=True)
         for gene in nearby:
             symbol = gene[-2]
-        return symbol
+            gene_id = gene[-3]
+            if old_symbol == symbol:
+                return [symbol, remove_ensembl_version(gene_id)]
+        return [symbol, remove_ensembl_version(gene_id)]
     
     @property
     def symbol_label(self):
@@ -625,10 +645,10 @@ class FusionEvent:
         fuse_peps = {}
         rep_tier = 99
         canonical_tier = 99
-        # if no annotation found
-        if len(self._left_gene.transcript_list) == 0 or len(self._right_gene.transcript_list) == 0:
-            tier = self.getTier(TYPE_NO_ANNOTATION)
-            self._rep_result = {"left_trans":"NA", "right_trans":"NA", "type": TYPE_NO_ANNOTATION, "tier": tier, \
+        # default: no annotation found. this should not happen
+        #if len(self._left_gene.transcript_list) == 0 or len(self._right_gene.transcript_list) == 0:
+        tier = self.getTier(TYPE_NO_ANNOTATION)
+        self._rep_result = {"left_trans":"NA", "right_trans":"NA", "type": TYPE_NO_ANNOTATION, "tier": tier, \
                 "fuse_nucl_position": 0, "fuse_pep_position" : 0, "left_location": "NA", "left_exon_number": "NA", "right_location": "NA", "right_exon_number": "NA"}
         #look for representative fusion: we use canonical transcripts. if there is no defined canonical transcripts, use the best tier pair
         fused_domains = {}

@@ -191,7 +191,7 @@ optional:
 
 #### Example 1: 
 ```
-singularity exec --bind /data/khanlab/projects/processed_DATA,/data/Clinomics/Ref/khanlab/ fusion_tools_v1.sif processFusionCase.sh \
+singularity exec -e --bind /data/khanlab/projects/processed_DATA,/data/Clinomics/Ref/khanlab/ fusion_tools_v1.sif processFusionCase.sh \
                        -d /data/khanlab/projects/processed_DATA \
                        -p RH4 \
                        -c Khanlab \
@@ -203,7 +203,7 @@ The output file will be: /data/khanlab/projects/processed_DATA/RH4/Khanlab/RH4/d
 
 #### Example 2: 
 ```
-singularity exec --bind /data/Compass/Analysis/ProcessedResults_NexSeq/ExomeRNA_Results,/data/Clinomics/Ref/khanlab/ fusion_tools_v1.sif processFusionCase.sh \
+singularity exec -e --bind /data/Compass/Analysis/ProcessedResults_NexSeq/ExomeRNA_Results,/data/Clinomics/Ref/khanlab/ fusion_tools_v1.sif processFusionCase.sh \
                        -d /data/Compass/Analysis/ProcessedResults_NexSeq/ExomeRNA_Results \
                        -p CP02796 \
                        -c RT-0391 \
