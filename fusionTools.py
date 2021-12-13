@@ -112,7 +112,10 @@ def main(args):
         if "SpanReadCount" in row:
             rc = row["SpanReadCount"]
         key = s.join(map(str,row[0:7]))
-        value = {row["Tool"]:rc}
+        if "Tool" in row:
+            value = {row["Tool"]:rc}
+        else:
+            logging.info("Tool column not found. Please check your input file format")
         if key in fusion_list:
             fusion_list[key].append({row["Tool"]:rc})
         else:

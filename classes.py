@@ -437,6 +437,10 @@ class Gene:
         self._canonical_transcript_id = ""
         self._mane_transcript_id = ""
         self._transcript_list = []
+        chr_df = genome.gene_bed.loc[genome.gene_bed["seqname"]==chromosome]
+        if chr_df.empty:            
+            logging.info("Chromosome " + chromosome + " not found")
+            return
         g_df = genome.gene_bed.loc[(genome.gene_bed["gene_name"]==symbol.upper()) & (genome.gene_bed["seqname"]==chromosome)]
         #if cannot find symbol, try Ensembl accession
         if g_df.empty and symbol[0:4] == "ENSG":
