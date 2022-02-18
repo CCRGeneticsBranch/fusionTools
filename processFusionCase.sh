@@ -29,10 +29,11 @@ if [ -z $path ] || [ -z $patient_id ] || [ -z $case_id ] || [ -z $pfam_path ] ||
 	echo "optional:"
 	echo "-t: number of threads. (default: SLURM_CPUS_PER_TASK variable)"
 	echo "-o: output folder (default: same as input folder)"
-	echo "-v: Gencode version (default: 37)"
+	echo "-v: Gencode version (36, 37, or hg38v39. default: 37 (hg19))"
 	echo
 	echo "Example:"
 	echo
+	echo "hg19:"
 	echo "./processFusionCase.sh -d /data/Compass/Analysis/ProcessedResults_NexSeq/ExomeRNA_Results \\"
 	echo "                       -p CP02796 \\"
 	echo "                       -c RT-0391 \\"
@@ -40,6 +41,13 @@ if [ -z $path ] || [ -z $patient_id ] || [ -z $case_id ] || [ -z $pfam_path ] ||
 	echo "                       -g /data/Clinomics/Ref/khanlab/ucsc.hg19.fasta \\"
 	echo "                       -v 36"
 	echo 
+	echo "hg38:"
+	echo "./processFusionCase.sh -d /data/Compass/Analysis/ProcessedResults_NexSeq/ExomeRNA_Results \\"
+	echo "                       -p CP02796 \\"
+	echo "                       -c RT-0391 \\"
+	echo "                       -f /data/Clinomics/Ref/khanlab/PfamDB \\"
+	echo "                       -g /data/Clinomics/Ref/khanlab/Index/BWAIndex/hg38.fa \\"
+	echo "                       -v hg38v39"
 	exit 0
 fi
 
@@ -50,9 +58,19 @@ if [ -z $gencode_version ];then
 	gencode_version="37"
 fi
 
-gtf=${script_home}/data/gencode.v${gencode_version}lift37.annotation.sorted.gtf.gz
-can_file=${script_home}/data/gencode.v${gencode_version}lift37.canonical.txt
-domain_file=${script_home}/data/gencode.v${gencode_version}lift37.domains.tsv
+cytoband_file=${script_home}/data/hg19_cytoBand.txt
+
+if [[ "$gencode_version" =~ .*"hg38".* ]]; then 
+	v=`echo $gencode_version | sed 's/hg38//'`;
+	cytoband_file=${script_home}/data/hg38_cytoBand.txt
+else 
+	v="v${gencode_version}lift37";
+fi;
+
+gtf=${script_home}/data/gencode.${v}.annotation.sorted.gtf.gz
+can_file=${script_home}/data/gencode.${v}.canonical.txt
+domain_file=${script_home}/data/gencode.${v}.domains.tsv
+
 if [ ! -f $gtf ];then
 	echo "GTF $gtf does not exist"
 	exit 1
@@ -110,4 +128,5 @@ for fn in $path/$patient_id/$case_id/*/fusion/*.actionable.fusion.txt;do
 		fi		
 	fi
 done
-python $script_home/makeOutputHTML.py -i ${out_file}.txt -o ${out_file}.html -t $script_home/data/template.html -c $script_home/data/hg19_cytoBand.txt
+echo "$script_home/makeOutputHTML.py -i ${out_file}.txt -o ${out_file}.html -t $script_home/data/template.html -c $cytoband_file"
+python $script_home/makeOutputHTML.py -i ${out_file}.txt -o ${out_file}.html -t $script_home/data/template.html -c $cytoband_file

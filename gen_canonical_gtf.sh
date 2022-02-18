@@ -1,7 +1,10 @@
-perl gen_canonical_gtf.pl -s gencode.v38lift37.annotation.sorted.gtf -c data/Ensembl_canonical_mane.txt -o gencode.v38lift37.annotation.sorted.genename_changed.gtf -g gencode.v38lift37.annotation.sorted.genename_changed.canonical.gtf
-
-bgzip < gencode.v38lift37.annotation.sorted.genename_changed.gtf > gencode.v38lift37.annotation.sorted.genename_changed.gtf.gz
-bgzip < gencode.v38lift37.annotation.sorted.genename_changed.canonical.gtf > gencode.v38lift37.annotation.sorted.genename_changed.canonical.gtf.gz
+#./gen_canonical_gtf.sh v39
 module load samtools
-tabix -p gff gencode.v38lift37.annotation.sorted.genename_changed.gtf.gz
-tabix -p gff gencode.v38lift37.annotation.sorted.genename_changed.canonical.gtf.gz
+version=$1
+perl gen_canonical_gtf.pl -s data/gencode.${version}.annotation.sorted.gtf -c data/gencode.${version}.canonical.txt -o gencode.${version}.annotation.sorted.genename_changed.gtf -g gencode.${version}.annotation.sorted.genename_changed.canonical.gtf
+
+bgzip < gencode.${version}.annotation.sorted.genename_changed.gtf > gencode.${version}.annotation.sorted.genename_changed.gtf.gz
+bgzip < gencode.${version}.annotation.sorted.genename_changed.canonical.gtf > gencode.${version}.annotation.sorted.genename_changed.canonical.gtf.gz
+module load samtools
+tabix -p gff gencode.${version}.annotation.sorted.genename_changed.gtf.gz
+tabix -p gff gencode.${version}.annotation.sorted.genename_changed.canonical.gtf.gz

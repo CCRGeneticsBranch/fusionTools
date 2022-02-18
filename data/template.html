@@ -1,6 +1,6 @@
 
 <link media="all" type="text/css" rel="stylesheet" href="https://clinomics.ccr.cancer.gov/clinomics/public/css/style.css">
-<script src="https://clinomics.ccr.cancer.gov/clinomics/public/packages/smartmenus-1.0.0-beta1/libs/jquery/jquery.js"></script>
+<script src="https://clinomics.ccr.cancer.gov/clinomics/public/js/jquery-3.6.0.min.js"></script>
 <link media="all" type="text/css" rel="stylesheet" href="https://clinomics.ccr.cancer.gov/clinomics/public/css/bootstrap.min.css">
 <link media="all" type="text/css" rel="stylesheet" href="https://clinomics.ccr.cancer.gov/clinomics/public/packages/bootstrap-switch-master/dist/css/bootstrap3/bootstrap-switch.css">
 <link media="all" type="text/css" rel="stylesheet" href="https://clinomics.ccr.cancer.gov/clinomics/public/packages/tooltipster-master/dist/css/tooltipster.bundle.min.css">
@@ -15,7 +15,7 @@
 <script src="https://clinomics.ccr.cancer.gov/clinomics/public/packages/tooltipster-master/dist/js/tooltipster.bundle.min.js"></script>
 <script src="https://clinomics.ccr.cancer.gov/clinomics/public/packages/bootstrap-switch-master/dist/js/bootstrap-switch.js"></script>
 <script src="https://clinomics.ccr.cancer.gov/clinomics/public/js/onco.js"></script>
-<script src="https://clinomics.ccr.cancer.gov/clinomics/public/js/jquery.dataTables.min.js"></script>
+<script src="https://clinomics.ccr.cancer.gov/clinomics/public/packages/DataTables-1.10.8/media/js/jquery.dataTables.min.js"></script>
 <script src="https://clinomics.ccr.cancer.gov/clinomics/public/packages/Buttons-1.0.0/js/dataTables.buttons.min.js"></script>
 <link media="all" type="text/css" rel="stylesheet" href="https://clinomics.ccr.cancer.gov/clinomics/public/packages/DataTables-1.10.8/media/css/jquery.dataTables.min.css">
 <link media="all" type="text/css" rel="stylesheet" href="https://clinomics.ccr.cancer.gov/clinomics/public/css/style_datatable.css">
@@ -259,10 +259,10 @@ Table tbody th, table.dataTable tbody td {
 		var types = objAttrToArray(type_list);
     	for (var i in types.sort()) {
 				d = types[i];
-    			if (d == "in-frame") {
-					$('#selTypes').append($('<option>', {value: d, text: d, selected: true}));
-				}
-    			else
+    			//if (d == "in-frame") {
+				//	$('#selTypes').append($('<option>', {value: d, text: d, selected: true}));
+				//}
+    			//else
     				$('#selTypes').append($('<option>', {value: d, text: d}));
     	}
     	var tools = objAttrToArray(tool_list);
