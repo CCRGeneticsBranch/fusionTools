@@ -47,6 +47,7 @@ class FusionClassifier(threading.Thread):
             
             left_gene = Gene(self._genome, left_symbol, left_chr, left_position, left_fusion_cancer_gene, left_cancer_gene)
             cancer_pair = (left_symbol + " " + right_symbol) in self._fusion_cancer_pairs
+            #print(right_symbol + " " + right_chr + " " + str(right_position))
             right_gene = Gene(self._genome, right_symbol, right_chr, right_position, right_fusion_cancer_gene, right_cancer_gene)
             
             event = FusionEvent(self._genome, left_gene, left_position, right_gene, right_position, cancer_pair, self._pfam_dir)

@@ -66,8 +66,9 @@ class Genome:
     def __init__(self, gtf_file, gene_bed_file, fasta_file, canonical_trans_file=None, domain_file=None, isoform_expression_file=None):
         self._gtf = pysam.TabixFile(gtf_file)
         self._gene_bedtool_obj = BedTool(gene_bed_file)
-        self._gene_bed = pd.read_csv(gene_bed_file, delimiter = "\t")
+        self._gene_bed = pd.read_csv(gene_bed_file, delimiter = "\t",index_col=False, header=None)
         self._gene_bed.columns = ['seqname','start','end','strand','gene_id','gene_name']
+        #print(self._gene_bed)
         gene_ids = self._gene_bed["gene_id"].apply(lambda x: remove_ensembl_version(x))
         self._gene_bed["gene_id"] = gene_ids
         self._gene_bed["gene_name"] = self._gene_bed["gene_name"].str.upper()
@@ -438,16 +439,18 @@ class Gene:
         self._mane_transcript_id = ""
         self._transcript_list = []
         chr_df = genome.gene_bed.loc[genome.gene_bed["seqname"]==chromosome]
+        #print(chr_df)
         if chr_df.empty:            
-            logging.info("Chromosome " + chromosome + " not found")
+            print("Chromosome " + chromosome + " not found")
             return
         g_df = genome.gene_bed.loc[(genome.gene_bed["gene_name"]==symbol.upper()) & (genome.gene_bed["seqname"]==chromosome)]
+        #print(g_df)
         #if cannot find symbol, try Ensembl accession
         if g_df.empty and symbol[0:4] == "ENSG":
             g_df = genome.gene_bed.loc[(genome.gene_bed["gene_id"]==symbol) & (genome.gene_bed["seqname"]==chromosome)]
         #if still empty or multiple values, look for nearest gene
         if g_df.empty:
-            #print("No symbol in GTF for gene " + symbol);
+            print("No symbol in GTF for gene " + chromosome + ":" + symbol + ". Trying to find nearest gene...");
             [new_symbol, new_gene_id] = self.getNearestSymbol(genome.gene_bedtool_obj, chromosome, position, symbol)
             if new_symbol != "":
                 if new_symbol != symbol:
@@ -457,10 +460,11 @@ class Gene:
                 g_df = genome.gene_bed.loc[genome.gene_bed["gene_id"]==new_gene_id]
                 #print(new_gene_id + str(g_df))
             else:
+                print("No nearest gene for " + symbol);
                 return
                 
         if len(g_df) > 1:
-            #print("Multiple entries for gene " + symbol)
+            print("Multiple entries for gene " + symbol)
             [new_symbol, new_gene_id] = self.getNearestSymbol(genome.gene_bedtool_obj, chromosome, position, symbol)
             if new_symbol != "":
                 if new_symbol != symbol:
@@ -470,6 +474,7 @@ class Gene:
                 g_df = genome.gene_bed.loc[genome.gene_bed["gene_id"]==new_gene_id]
                 #print(new_gene_id + ":" + str(g_df))
             else:
+                print("No nearest gene for " + symbol);
                 return
 
         #tbx = pysam.TabixFile("data/gencode.v38lift37.annotation.sorted.gtf.gz")        

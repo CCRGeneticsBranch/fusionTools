@@ -12,5 +12,5 @@ bed_file = args.bed.strip()
 
 gtf = read_gtf(gtf_file)
 gene_gtf = gtf[gtf['feature']=="gene"]
-gene_gtf = gene_gtf[["seqname","start","end","strand","gene_id","gene_name"]]
+gene_gtf = gene_gtf[["seqname","start","end","strand","gene_id","gene_name", "gene_type", "level"]]
 gene_gtf.to_csv(bed_file, sep ='\t', index=None, header=False)

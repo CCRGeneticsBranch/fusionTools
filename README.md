@@ -141,12 +141,13 @@ required:
 optional:
 -t: number of threads. (default: SLURM_CPUS_PER_TASK variable)
 -o: output folder (default: same as input folder)
--v: Gencode version (default: 37)
+-v: Gencode version (36, 37, or hg38v39. default: 37 (hg19))
 
 ```
 
 ##### Example:
 
+hg19 (use -v 36 or 37)
 ```
 ./processFusionCase.sh -d /data/Compass/Analysis/ProcessedResults_NexSeq/ExomeRNA_Results \
                        -p CP02796 \
@@ -154,6 +155,17 @@ optional:
                        -f /data/Clinomics/Ref/khanlab/PfamDB \
                        -g /data/Clinomics/Ref/khanlab/ucsc.hg19.fasta \
                        -v 36
+
+```
+
+hg38 (use -v hg38v39)
+```
+./processFusionCase.sh -d /data/Compass/Analysis/ProcessedResults_NexSeq/ExomeRNA_Results \
+                       -p CP02796 \
+                       -c RT-0391 \
+                       -f /data/Clinomics/Ref/khanlab/PfamDB \
+                       -g /data/Clinomics/Ref/khanlab/Index/BWAIndex/hg38.fa \
+                       -v hg38v39
 
 ```
 
@@ -189,7 +201,7 @@ optional:
 -v: Gencode version (default: 37)
 ```
 
-#### Example 1: 
+#### Example 1 (hg19 Gencode v37litf37): 
 ```
 singularity exec -e --bind /data/khanlab/projects/processed_DATA,/data/Clinomics/Ref/khanlab/ fusion_tools_v1.sif processFusionCase.sh \
                        -d /data/khanlab/projects/processed_DATA \
@@ -201,7 +213,7 @@ singularity exec -e --bind /data/khanlab/projects/processed_DATA,/data/Clinomics
 
 The output file will be: /data/khanlab/projects/processed_DATA/RH4/Khanlab/RH4/db/RH4.fusion.txt
 
-#### Example 2: 
+#### Example 2 (hg19 Gencode v36litf37):  
 ```
 singularity exec -e --bind /data/Compass/Analysis/ProcessedResults_NexSeq/ExomeRNA_Results,/data/Clinomics/Ref/khanlab/ fusion_tools_v1.sif processFusionCase.sh \
                        -d /data/Compass/Analysis/ProcessedResults_NexSeq/ExomeRNA_Results \
@@ -210,6 +222,18 @@ singularity exec -e --bind /data/Compass/Analysis/ProcessedResults_NexSeq/ExomeR
                        -f /data/Clinomics/Ref/khanlab/PfamDB \
                        -g /data/Clinomics/Ref/khanlab/ucsc.hg19.fasta \
                        -v 36
+
+```
+
+#### Example 3 (hg38 Gencode v39):  
+```
+singularity exec -e --bind /data/Compass/Analysis/ProcessedResults_NexSeq/ExomeRNA_Results,/data/Clinomics/Ref/khanlab/ fusion_tools_v1.sif processFusionCase.sh \
+                       -d /data/Compass/Analysis/ProcessedResults_NexSeq/ExomeRNA_Results \
+                       -p CP02796 \
+                       -c RT-0391 \
+                       -f /data/Clinomics/Ref/khanlab/PfamDB \
+                       -g /data/Clinomics/Ref/khanlab/Index/BWAIndex/hg38.fa \
+                       -v hg38v39
 
 ```
 
