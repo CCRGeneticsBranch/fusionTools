@@ -462,7 +462,10 @@ class Gene:
             else:
                 print("No nearest gene for " + symbol);
                 return
-                
+        if g_df.empty:
+            print("Nearest gene is still empty:" + symbol)
+            return
+        
         if len(g_df) > 1:
             print("Multiple entries for gene " + symbol)
             [new_symbol, new_gene_id] = self.getNearestSymbol(genome.gene_bedtool_obj, chromosome, position, symbol)
