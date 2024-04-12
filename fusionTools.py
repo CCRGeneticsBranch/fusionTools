@@ -32,13 +32,13 @@ class FusionClassifier(threading.Thread):
     def run(self):
         
         for key in self._fusion_list:
-            row = key.split(":")
+            row = key.split("^")
             left_symbol = row[0]
             right_symbol = row[1]            
             left_chr = row[2]
             right_chr = row[4]
-            left_position = int(row[3])
-            right_position = int(row[5])
+            left_position = int(float(row[3]))
+            right_position = int(float(row[5]))
             sample = row[6]
             left_fusion_cancer_gene = left_symbol in self._fusion_cancer_genes
             left_cancer_gene = left_symbol in self._cancer_genes
@@ -95,6 +95,7 @@ def main(args):
     logging.info("Domain file:" + domain_file)
     logging.info("Canonical file:" + canonical_trans_file)
     logging.info("PfamDB:" + pfam_dir) 
+    logging.info("Temp dir:" + tempfile.gettempdir())
     start=datetime.now()
     #prepare GTF, canonical list and cancer gene list
     genome = Genome(gtf_file, gene_bed_file, fasta_file, canonical_trans_file, domain_file, isoform_expression_file)
@@ -108,7 +109,7 @@ def main(args):
     fusion_list = {}
     #combine fusion callers
     for index, row in in_list.iterrows():        
-        s = ":"
+        s = "^"
         rc = "NA"
         if "SpanReadCount" in row:
             rc = row["SpanReadCount"]

@@ -36,7 +36,7 @@ TYPE_NO_PROTIEN = "no protein"
 TYPE_NO_ANNOTATION = "no annotation"
 
 def predictPfam(fuse_pep, pfam_file):
-    tmp_in = os.path.basename(tempfile.NamedTemporaryFile().name)
+    tmp_in = tempfile.NamedTemporaryFile().name
     out_data = ">fuse\n" + fuse_pep
     f = open(tmp_in, "w")        
     f.write(out_data)
@@ -741,7 +741,7 @@ class FusionEvent:
             
 
     def predictPfam(self, fuse_pep):
-        tmp_in = os.path.basename(tempfile.NamedTemporaryFile().name)
+        tmp_in = tempfile.NamedTemporaryFile().name
         out_data = ">fuse\n" + fuse_pep
         f = open(tmp_in, "w")        
         f.write(out_data)

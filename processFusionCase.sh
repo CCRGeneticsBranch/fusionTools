@@ -4,6 +4,8 @@
 #SBATCH --mem=80G
 #SBATCH --time=24:00:00
 
+#module load python/3.7 hmmer bedtools
+
 while [[ "$#" -gt 0 ]]; do case $1 in
   -d) path="$2"; shift;;
   -p) patient_id="$2"; shift;;
